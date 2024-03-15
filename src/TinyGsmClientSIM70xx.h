@@ -90,6 +90,10 @@ class TinyGsmSim70xx : public TinyGsmModem<TinyGsmSim70xx<modemType>>,
     if (thisModem().waitResponse(5000L, res2) != 1) { return name; }
     res2.replace(GSM_NL "OK" GSM_NL, "");
     res2.replace("_", " ");
+    if (res2.startsWith("AT+GMM")) {
+      // https://github.com/Xinyuan-LilyGO/LilyGo-T-SIM7080G/issues/44
+      res2 = res2.substring(6);
+    }
     res2.trim();
 
     name = res2;
