@@ -114,7 +114,7 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
     // The TCP connection itself is not opened until you attempt to send data.
     // Because all settings are saved to flash, it is possible (or likely) that
     // you could send data even if you haven't "made" any connection.
-    virtual int connect(const char* host, uint16_t port, int timeout_s) {
+    virtual int connect(const char* host, uint16_t port, int32_t timeout_s) {
       // NOTE:  Not caling stop() or yeild() here
       at->streamClear();  // Empty anything in the buffer before starting
       sock_connected = at->modemConnect(host, port, mux, false, timeout_s);
@@ -124,7 +124,7 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
       return connect(host, port, 75);
     }
 
-    virtual int connect(IPAddress ip, uint16_t port, int timeout_s) {
+    virtual int connect(IPAddress ip, uint16_t port, int32_t timeout_s) {
       if (timeout_s != 0) {
         DBG("Timeout [", timeout_s, "] doesn't apply here.");
       }
@@ -260,7 +260,7 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
         : GsmClientXBee(modem, mux) {}
 
    public:
-    int connect(const char* host, uint16_t port, int timeout_s) override {
+    int connect(const char* host, uint16_t port, int32_t timeout_s) override {
       // NOTE:  Not caling stop() or yeild() here
       at->streamClear();  // Empty anything in the buffer before starting
       sock_connected = at->modemConnect(host, port, mux, true, timeout_s);
@@ -270,7 +270,7 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
       return connect(host, port, 75);
     }
 
-    int connect(IPAddress ip, uint16_t port, int timeout_s) override {
+    int connect(IPAddress ip, uint16_t port, int32_t timeout_s) override {
       if (timeout_s != 0) {
         DBG("Timeout [", timeout_s, "] doesn't apply here.");
       }

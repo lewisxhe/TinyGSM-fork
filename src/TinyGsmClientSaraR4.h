@@ -97,7 +97,7 @@ class TinyGsmSaraR4 : public TinyGsmModem<TinyGsmSaraR4>,
     }
 
    public:
-    virtual int connect(const char* host, uint16_t port, int timeout_s) {
+    virtual int connect(const char* host, uint16_t port, int32_t timeout_s) {
       // stop();  // DON'T stop!
       TINY_GSM_YIELD();
       rx.clear();
@@ -113,7 +113,7 @@ class TinyGsmSaraR4 : public TinyGsmModem<TinyGsmSaraR4>,
 
       return sock_connected;
     }
-    virtual int connect(IPAddress ip, uint16_t port, int timeout_s) {
+    virtual int connect(IPAddress ip, uint16_t port, int32_t timeout_s) {
       return connect(TinyGsmStringFromIp(ip).c_str(), port, timeout_s);
     }
     int connect(const char* host, uint16_t port) override {
@@ -177,7 +177,7 @@ class TinyGsmSaraR4 : public TinyGsmModem<TinyGsmSaraR4>,
         : GsmClientSaraR4(modem, mux) {}
 
    public:
-    int connect(const char* host, uint16_t port, int timeout_s) override {
+    int connect(const char* host, uint16_t port, int32_t timeout_s) override {
       // stop();  // DON'T stop!
       TINY_GSM_YIELD();
       rx.clear();
@@ -191,7 +191,7 @@ class TinyGsmSaraR4 : public TinyGsmModem<TinyGsmSaraR4>,
       at->maintain();
       return sock_connected;
     }
-    int connect(IPAddress ip, uint16_t port, int timeout_s) override {
+    int connect(IPAddress ip, uint16_t port, int32_t timeout_s) override {
       return connect(TinyGsmStringFromIp(ip).c_str(), port, timeout_s);
     }
     int connect(const char* host, uint16_t port) override {

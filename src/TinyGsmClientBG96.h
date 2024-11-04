@@ -97,7 +97,7 @@ class TinyGsmBG96 : public TinyGsmModem<TinyGsmBG96>,
     }
 
    public:
-    virtual int connect(const char* host, uint16_t port, int timeout_s) {
+    virtual int connect(const char* host, uint16_t port, int32_t timeout_s) {
       stop();
       TINY_GSM_YIELD();
       rx.clear();
@@ -140,7 +140,7 @@ class TinyGsmBG96 : public TinyGsmModem<TinyGsmBG96>,
 
 
   public:
-    int connect(const char* host, uint16_t port, int timeout_s) override {
+    int connect(const char* host, uint16_t port, int32_t timeout_s) override {
       stop();
       TINY_GSM_YIELD();
       rx.clear();

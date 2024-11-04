@@ -97,7 +97,7 @@ class TinyGsmUBLOX : public TinyGsmModem<TinyGsmUBLOX>,
     }
 
    public:
-    virtual int connect(const char* host, uint16_t port, int timeout_s) {
+    virtual int connect(const char* host, uint16_t port, int32_t timeout_s) {
       // stop();  // DON'T stop!
       TINY_GSM_YIELD();
       rx.clear();
@@ -144,7 +144,7 @@ class TinyGsmUBLOX : public TinyGsmModem<TinyGsmUBLOX>,
         : GsmClientUBLOX(modem, mux) {}
 
    public:
-    int connect(const char* host, uint16_t port, int timeout_s) override {
+    int connect(const char* host, uint16_t port, int32_t timeout_s) override {
       // stop();  // DON'T stop!
       TINY_GSM_YIELD();
       rx.clear();
