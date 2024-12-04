@@ -58,7 +58,7 @@ class TinyGsmSim7080 : public TinyGsmSim70xx<TinyGsmSim7080>,
     }
 
    public:
-    virtual int connect(const char* host, uint16_t port, int timeout_s) {
+    virtual int connect(const char* host, uint16_t port, int32_t timeout_s) {
       stop();
       TINY_GSM_YIELD();
       rx.clear();
@@ -100,8 +100,7 @@ class TinyGsmSim7080 : public TinyGsmSim70xx<TinyGsmSim7080>,
       return at->setCertificate(certificateName, mux);
     }
 
-    virtual int connect(const char* host, uint16_t port,
-                        int timeout_s) override {
+    virtual int connect(const char* host, uint16_t port, int32_t timeout_s) override {
       stop();
       TINY_GSM_YIELD();
       rx.clear();

@@ -21,8 +21,9 @@
 
 // Because of the ordering of resolution of overrides in templates, these need
 // to be written out every time.  This macro is to shorten that.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 #define TINY_GSM_CLIENT_CONNECT_OVERRIDES                             \
-  int connect(IPAddress ip, uint16_t port, int timeout_s) {           \
+  int connect(IPAddress ip, uint16_t port, int32_t timeout_s) override {  \
     return connect(TinyGsmStringFromIp(ip).c_str(), port, timeout_s); \
   }                                                                   \
   int connect(const char* host, uint16_t port) override {             \
@@ -31,6 +32,15 @@
   int connect(IPAddress ip, uint16_t port) override {                 \
     return connect(ip, port, 75);                                     \
   }
+#else
+#define TINY_GSM_CLIENT_CONNECT_OVERRIDES                             \
+  int connect(const char* host, uint16_t port) override {             \
+    return connect(host, port, 75);                                   \
+  }                                                                   \
+  int connect(IPAddress ip, uint16_t port) override {                 \
+    return connect(ip, port, 75);                                     \
+  }
+#endif
 
 // // For modules that do not store incoming data in any sort of buffer
 // #define TINY_GSM_NO_MODEM_BUFFER
@@ -73,11 +83,11 @@ class TinyGsmTCP {
 
    public:
     // bool init(modemType* modem, uint8_t);
-    // int connect(const char* host, uint16_t port, int timeout_s);
+    // int connect(const char* host, uint16_t port, int32_t timeout_s);
 
     // Connect to a IP address given as an IPAddress object by
     // converting said IP address to text
-    // virtual int connect(IPAddress ip,uint16_t port, int timeout_s) {
+    // virtual int connect(IPAddress ip,uint16_t port, int32_t timeout_s) {
     //   return connect(TinyGsmStringFromIp(ip).c_str(), port,
     //   timeout_s);
     // }
