@@ -23,6 +23,10 @@
 #include "TinyGsmMqttA76xx.h"
 #include "TinyGsmHttpsA76xx.h"
 
+// Websocket callback function
+typedef void (*websocket_cb_t)(const uint8_t* buffer, size_t length);
+
+
 class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
                         public TinyGsmTCP<TinyGsmA76xxSSL, TINY_GSM_MUX_COUNT>,
                         public TinyGsmSSL<TinyGsmA76xxSSL>,
@@ -77,11 +81,9 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
 
     void stop(uint32_t maxWaitMs) {
       dumpModemBuffer(maxWaitMs);
-      at->sendAT(GF("+CCHCLOSE="), mux);
-      at->waitResponse(3000);
 
-      at->sendAT(GF("+CCHSTOP"));
-      at->waitResponse(3000);
+      at->modemDisconnect(mux);
+
       sock_connected = false;
     }
     void stop() override {
@@ -691,32 +693,168 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
     return sockets[mux]->sock_connected;
   }
 
+  bool sslDisconnect(uint8_t mux) {
+    sendAT(GF("+CCHCLOSE="), mux);
+    waitResponse(3000);
+    sendAT(GF("+CCHSTOP"));
+    waitResponse(3000);
+    return true;
+  }
+
+  /*
+   * Websocket functions
+   */
+
+ public:
+  void setWebSocketRecvCallback(websocket_cb_t cb) {
+    _websocket_cb = cb;
+  }
+
+ protected:
+  // host: The string that described the server address and port. The range of
+  //       the string length is 9 to 256 bytes. The string should be like this
+  //       "ws://116.247.119.165:5141/test", must begin with "ws://". If the
+  //       <server_addr> not include the port, the default port is 80.If the
+  //       <server_addr> not include the path, the default path is /.
+  // port: Invalid parameter, no need to pass in
+  // ssl:  Invalid parameter, no need to pass in
+  // mux:  A numeric parameter which specifies a particular PDP context .The
+  //      range is 1-n,The maximum value n is related to the pdp command of the modem
+  // Examples:
+  // client.connect("ws://xxxxxxx.s2.eu.hivemq.cloud:8884/mqtt",8884);
+  //
+  bool websocketConnect(const char* host, uint16_t port, uint8_t mux, bool ssl,
+                        int timeout_s) {
+    uint32_t timeout_ms = ((uint32_t)timeout_s) * 1000;
+    DBG("host:", host, " port:", port, " timeout:", timeout_s);
+    if (mux) {
+      sendAT(GF("+WSSTART="), mux);
+    } else {
+      sendAT(GF("+WSSTART"));
+    }
+    waitResponse();
+    // AT+WSCONNECT=<server_addr>,[time_out]
+    sendAT(GF("+WSCONNECT=\""), host, "\",", timeout_s);
+    int8_t res = waitResponse(timeout_ms, GF("+WSCONNECT:"), GF("ERROR"));
+    if (res == 1) {
+      res = streamGetIntBefore('\n');
+      waitResponse();  // wait ok
+      return res == 0;
+    }
+    return false;
+  }
+
+  int16_t websocketSend(const void* buff, size_t len, uint8_t mux) {
+    // send data on prompt
+    sendAT(GF("+WSSEND="), len, ',', mux);
+    if (waitResponse(GF(">")) != 1) { return 0; }
+    stream.write(reinterpret_cast<const uint8_t*>(buff), len);
+    stream.flush();
+    if (waitResponse(GF("+WSSEND:")) != 1) { return 0; }
+    int     ret_mux = streamGetIntBefore(',');
+    int16_t ret_len = streamGetIntBefore('\n');
+    waitResponse();  // Wait ok
+    return ret_len;
+  }
+
+  size_t websocketRead(size_t size, uint8_t mux) {
+    // TODO:
+    if (size > websocket_available_bytes) {
+      size_t tmp                = websocket_available_bytes;
+      websocket_available_bytes = 0;
+      return tmp;
+    } else {
+      websocket_available_bytes -= size;
+      return size;
+    }
+    return 0;
+  }
+
+  size_t websocketAvailable(uint8_t mux) {
+    // TODO:
+    return websocket_available_bytes;
+  }
+
+  bool websocketConnected(uint8_t mux) {
+    sendAT(GF("+WSCONNECT?"));
+    int res = waitResponse(3000, GF("+WSCONNECT:"), GFP(GSM_OK), GFP(GSM_ERROR));
+    if (res == 1) {
+      int connect_status = streamGetIntBefore(',');  // connect_status
+      streamSkipUntil(',');                          // server_addr
+      streamSkipUntil('\n');                         // server_path
+      waitResponse();                                // Wait ok
+      sockets[mux]->sock_connected = connect_status;
+    }
+    return sockets[mux]->sock_connected;
+  }
+
+  bool websocketDisconnect(uint8_t mux) {
+    sendAT(GF("+WSDISC=120"));
+    waitResponse(10000UL);
+    if (mux) {
+      sendAT(GF("+WSSTOP="), mux);
+    } else {
+      sendAT(GF("+WSSTOP"));
+    }
+    return waitResponse(3000) == 1;
+  }
 
   bool modemConnect(const char* host, uint16_t port, uint8_t mux, bool ssl = false,
                     int timeout_s = 75) {
-    String url = host;
-    if (url.startsWith("ws://")) {
-      // todo:websocket connect
+    DBG("modemConnect=", host);
+    if (strncmp(host, "ws://", 5) == 0) {
+      connType[mux] = TINYGSM_WEBSOCKET;
+      return websocketConnect(host, port, mux, ssl, timeout_s);
     } else {
+      connType[mux] = TINYGSM_SSL;
       return sslConnect(host, port, mux, ssl, timeout_s);
     }
     return false;
   }
 
   int16_t modemSend(const void* buff, size_t len, uint8_t mux) {
-    return sslSend(buff, len, mux);
+    switch (connType[mux]) {
+      case TINYGSM_WEBSOCKET: return websocketSend(buff, len, mux);
+      case TINYGSM_SSL: return sslSend(buff, len, mux);
+      default: break;
+    }
+    return false;
   }
 
   size_t modemRead(size_t size, uint8_t mux) {
-    return sslRead(size, mux);
+    switch (connType[mux]) {
+      case TINYGSM_WEBSOCKET: return websocketRead(size, mux);
+      case TINYGSM_SSL: return sslRead(size, mux);
+      default: break;
+    }
+    return false;
   }
 
   size_t modemGetAvailable(uint8_t mux) {
-    return sslAvailable(mux);
+    switch (connType[mux]) {
+      case TINYGSM_WEBSOCKET: return websocketAvailable(mux);
+      case TINYGSM_SSL: return sslAvailable(mux);
+      default: break;
+    }
+    return false;
   }
 
   bool modemGetConnected(uint8_t mux) {
-    return sslConnected(mux);
+    switch (connType[mux]) {
+      case TINYGSM_WEBSOCKET: return websocketConnected(mux);
+      case TINYGSM_SSL: return sslConnected(mux);
+      default: break;
+    }
+    return false;
+  }
+
+  bool modemDisconnect(uint8_t mux) {
+    switch (connType[mux]) {
+      case TINYGSM_WEBSOCKET: return websocketDisconnect(mux);
+      case TINYGSM_SSL: return sslDisconnect(mux);
+      default: break;
+    }
+    return false;
   }
 
   /*
@@ -795,8 +933,25 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
           data = "";
           // TODO:
           DBG("## Websocket get message receive!");
-          int length = streamGetIntBefore('\n');
-          DBG("Recv length:", length);
+          int len_confirmed = streamGetIntBefore('\n');
+          DBG("Recv length:", len_confirmed);
+          while (!stream.available()) { TINY_GSM_YIELD(); }
+          uint8_t mux = 0;
+          sockets[mux]->rx.clear();  // Clear buffer
+          for (int i = 0; i < len_confirmed; i++) {
+            uint32_t startMillis = millis();
+            while (!stream.available() &&
+                   (millis() - startMillis < sockets[mux]->_timeout)) {
+              TINY_GSM_YIELD();
+            }
+            char c = stream.read();
+            sockets[mux]->rx.put(c);
+          }
+          websocket_available_bytes = len_confirmed;
+
+          if (_websocket_cb) {
+            // TODO: WEBSOCKET
+          }
         }
       }
     } while (millis() - startMillis < timeout_ms);
@@ -841,6 +996,9 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
   String             client_private_key[TINY_GSM_MUX_COUNT];
   String             client_certificate[TINY_GSM_MUX_COUNT];
   String             client_private_key_password[TINY_GSM_MUX_COUNT];
+  GsmClientConnType  connType[TINY_GSM_MUX_COUNT];
+  size_t             websocket_available_bytes;
+  websocket_cb_t     _websocket_cb;
 };
 
 #endif  // SRC_TINYGSMCLIENTA76XXSSL_H_
