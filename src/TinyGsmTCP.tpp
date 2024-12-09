@@ -16,7 +16,11 @@
 #include "TinyGsmFifo.h"
 
 #if !defined(TINY_GSM_RX_BUFFER)
+#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
+#define TINY_GSM_RX_BUFFER 2048
+#else
 #define TINY_GSM_RX_BUFFER 64
+#endif
 #endif
 
 // Because of the ordering of resolution of overrides in templates, these need
@@ -32,13 +36,13 @@
     return connect(ip, port, 75);                                     \
   }
 
-// // For modules that do not store incoming data in any sort of buffer
+// For modules that do not store incoming data in any sort of buffer
 // #define TINY_GSM_NO_MODEM_BUFFER
-// // Data is stored in a buffer, but we can only read from the buffer,
-// // not check how much data is stored in it
+// Data is stored in a buffer, but we can only read from the buffer,
+// not check how much data is stored in it
 // #define TINY_GSM_BUFFER_READ_NO_CHECK
-// // Data is stored in a buffer and we can both read and check the size
-// // of the buffer
+// Data is stored in a buffer and we can both read and check the size
+// of the buffer
 // #define TINY_GSM_BUFFER_READ_AND_CHECK_SIZE
 
 template <class modemType, uint8_t muxCount>
