@@ -408,8 +408,7 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
    * Client related functions
    */
  protected:
-  bool modemConnect(const char* host, uint16_t port, uint8_t mux, bool ssl = false,
-                    int timeout_s = 75) {
+  bool sslConnect(const char* host, uint16_t port, uint8_t mux, bool ssl, int timeout_s) {
     uint32_t timeout_ms = ((uint32_t)timeout_s) * 1000;
 
     /*
@@ -534,7 +533,7 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
     return 0 == res;
   }
 
-  int16_t modemSend(const void* buff, size_t len, uint8_t mux) {
+  int16_t sslSend(const void* buff, size_t len, uint8_t mux) {
     // send data on prompt
     sendAT(GF("+CCHSEND="), mux, ',', (uint16_t)len);
     if (waitResponse(GF(">")) != 1) { return 0; }
@@ -551,7 +550,7 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
     return write_bytes;
   }
 
-  size_t modemRead(size_t size, uint8_t mux) {
+  size_t sslRead(size_t size, uint8_t mux) {
     if (!sockets[mux]) { return 0; }
 
     sendAT(GF("+CCHRECV="), mux, ',', (uint16_t)size);
@@ -588,7 +587,7 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
       /*uint16_t remaining = */ streamGetIntBefore('\n');
     }
 
-    // DBG("### READ:", len_confirmed, "from", mux);
+    DBG("### READ:", len_confirmed, "from", mux);
     // make sure the sock available number is accurate again
     // the module is **EXTREMELY** testy about being asked to read more from
     // the buffer than exits; it will freeze until a hard reset or power cycle!
@@ -596,7 +595,7 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
     return len_confirmed;
   }
 
-  size_t modemGetAvailable(uint8_t mux) {
+  size_t sslAvailable(uint8_t mux) {
     // If the socket doesn't exist, just return
     if (!sockets[mux]) { return 0; }
     // We need to check if there are any connections open *before* checking for
@@ -607,54 +606,25 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
     // NOTE: This gets how many characters are available on all connections that
     // have data.  It does not return all the connections, just those with data.
     sendAT(GF("+CCHRECV?"));
-    for (int muxNo = 0; muxNo < TINY_GSM_MUX_COUNT; muxNo++) {
-      // after the last connection, there's an ok, so we catch it right away
-
+    // +CCHRECV: LEN,2048,0
+    int res = waitResponse(3000, GF("+CCHRECV: LEN,"), GFP(GSM_OK), GFP(GSM_ERROR));
+    // if we get the +CCHRECV: response, read the mux number and the number of
+    // characters available
+    if (res == 1) {
       // +CCHRECV: LEN,2048,0
-      int res = waitResponse(3000, GF("+CCHRECV: LEN,"), GFP(GSM_OK), GFP(GSM_ERROR));
-      // if we get the +CCHRECV: response, read the mux number and the number of
-      // characters available
-      if (res == 1) {
-        // +CCHRECV: LEN,2048,0
-        size_t result  = streamGetIntBefore(',');
-        int    ret_mux = streamGetIntBefore('\n');
-        if (ret_mux == -9999) {
-          // DBG("ERROR: mux = -9999");
-          return 0;
-        }
-        GsmClientA76xxSSL* sock = sockets[ret_mux];
-
-        waitResponse();
-        // DBG("---- available:", result, "ret_mux", ret_mux);
-
-        if (sock) { sock->sock_available = result; }
-        // if the first returned mux isn't 0 (or is higher than expected)
-        // we need to fill in the missing muxes
-        if (ret_mux > muxNo) {
-          for (int extra_mux = muxNo; extra_mux < ret_mux; extra_mux++) {
-            GsmClientA76xxSSL* isock = sockets[extra_mux];
-            if (isock) { isock->sock_available = 0; }
-          }
-          muxNo = ret_mux;
-        }
-      } else if (res == 2) {
-        // if we get an OK, we've reached the last socket with available data
-        // so we set any we haven't gotten to yet to 0
-        for (int extra_mux = muxNo; extra_mux < TINY_GSM_MUX_COUNT; extra_mux++) {
-          GsmClientA76xxSSL* isock = sockets[extra_mux];
-          if (isock) { isock->sock_available = 0; }
-        }
-        break;
-      } else {
-        // if we got an error, give up
-        break;
+      size_t result  = streamGetIntBefore(',');
+      int    ret_mux = streamGetIntBefore('\n');
+      if (ret_mux == -9999) {
+        // DBG("ERROR: mux = -9999");
+        return 0;
       }
-      // Should be a final OK at the end.
-      // If every connection was returned, catch the OK here.
-      // If only a portion were returned, catch it above.
-      if (muxNo == TINY_GSM_MUX_COUNT - 1) { waitResponse(); }
+      GsmClientA76xxSSL* sock = sockets[ret_mux];
+      waitResponse();
+      // DBG("---- available:", result, "ret_mux", ret_mux);
+      if (sock) { sock->sock_available = result; }
     }
     if (!sockets[mux]) { return 0; }
+    // DBG("sockets[mux]->sock_available=", sockets[mux]->sock_available);
     return sockets[mux]->sock_available;
   }
 
@@ -670,7 +640,7 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
    * Other versions may also have the same problem. BUG analysis has been submitted to
    * SIMCOM 20241209
    */
-  bool modemGetConnected(uint8_t mux) {
+  bool sslConnected(uint8_t mux) {
     sendAT(GF("+CCHOPEN?"));
     // +CCHOPEN: 0,<host>,<port>,<client_type>,<bind_port>
     // +CCHOPEN: 0,"httpbin.org",443,2,54021
@@ -717,7 +687,36 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
     } else {
       DBG("## Unhandle");
     }
+    DBG("Connect = ", sockets[mux]->sock_connected);
     return sockets[mux]->sock_connected;
+  }
+
+
+  bool modemConnect(const char* host, uint16_t port, uint8_t mux, bool ssl = false,
+                    int timeout_s = 75) {
+    String url = host;
+    if (url.startsWith("ws://")) {
+      // todo:websocket connect
+    } else {
+      return sslConnect(host, port, mux, ssl, timeout_s);
+    }
+    return false;
+  }
+
+  int16_t modemSend(const void* buff, size_t len, uint8_t mux) {
+    return sslSend(buff, len, mux);
+  }
+
+  size_t modemRead(size_t size, uint8_t mux) {
+    return sslRead(size, mux);
+  }
+
+  size_t modemGetAvailable(uint8_t mux) {
+    return sslAvailable(mux);
+  }
+
+  bool modemGetConnected(uint8_t mux) {
+    return sslConnected(mux);
   }
 
   /*
@@ -770,12 +769,13 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
           index = 5;
           goto finish;
         } else if (data.endsWith(GF("PB DONE"))) {
+          data = "";
           // TODO:
         } else if (data.endsWith(GF("SIM REMOVED"))) {
+          data = "";
           // TODO:
         } else if (data.endsWith(GF("+CCHEVENT: 0,RECV EVENT"))) {
-          // TODO:
-        } else if (data.endsWith(GF("+CCHRECV:"))) {
+          data = "";
           // TODO:
         } else if (data.endsWith(GF("+CCH_PEER_CLOSED:"))) {
           int8_t mux = streamGetIntBefore('\n');
@@ -784,6 +784,19 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
             DBG("### Closed: ", mux);
           }
           data = "";
+        } else if (data.endsWith(GF("+WSDISC:"))) {
+          data = "";
+          DBG("## Websocket Disconnected!");
+          // TODO:
+          int res = streamGetIntBefore('\n');
+          DBG("Error code:", res);
+
+        } else if (data.endsWith(GF("+WSRECEIVE:"))) {
+          data = "";
+          // TODO:
+          DBG("## Websocket get message receive!");
+          int length = streamGetIntBefore('\n');
+          DBG("Recv length:", length);
         }
       }
     } while (millis() - startMillis < timeout_ms);
