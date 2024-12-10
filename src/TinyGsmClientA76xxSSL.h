@@ -906,6 +906,13 @@ class TinyGsmA76xxSSL : public TinyGsmA76xx<TinyGsmA76xxSSL>,
         } else if (r5 && data.endsWith(r5)) {
           index = 5;
           goto finish;
+        } else if (data.endsWith(GF("SMS DONE"))) {
+          data = "";
+          // TODO:
+        } else if (data.endsWith(GF("*ATREADY:"))) {
+          streamSkipUntil('\n');
+          data = "";
+          // TODO:
         } else if (data.endsWith(GF("PB DONE"))) {
           data = "";
           // TODO:
