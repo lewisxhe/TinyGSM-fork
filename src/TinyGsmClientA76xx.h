@@ -23,6 +23,7 @@
 #include "TinyGsmGSMLocation.tpp"
 #include "TinyGsmTemperature.tpp"
 #include "TinyGsmTextToSpeech.tpp"
+#include "TinyGsmGPS_EX.tpp"
 
 #define GSM_NL "\r\n"
 static const char GSM_OK[] TINY_GSM_PROGMEM    = "OK" GSM_NL;
@@ -59,7 +60,8 @@ class TinyGsmA76xx : public TinyGsmModem<TinyGsmA76xx<modemType>>,
                      public TinyGsmBattery<TinyGsmA76xx<modemType>>,
                      public TinyGsmTemperature<TinyGsmA76xx<modemType>>,
                      public TinyGsmTextToSpeech<TinyGsmA76xx<modemType>>,
-                     public TinyGsmGSMLocation<TinyGsmA76xx<modemType>> {
+                     public TinyGsmGSMLocation<TinyGsmA76xx<modemType>>,
+                     public TinyGsmGPSEx<TinyGsmA76xx<modemType>> {
   friend class TinyGsmModem<TinyGsmA76xx<modemType>>;
   friend class TinyGsmGPRS<TinyGsmA76xx<modemType>>;
   friend class TinyGsmSMS<TinyGsmA76xx<modemType>>;
@@ -70,6 +72,7 @@ class TinyGsmA76xx : public TinyGsmModem<TinyGsmA76xx<modemType>>,
   friend class TinyGsmGSMLocation<TinyGsmA76xx<modemType>>;
   friend class TinyGsmTemperature<TinyGsmA76xx<modemType>>;
   friend class TinyGsmTextToSpeech<TinyGsmA76xx<modemType>>;
+  friend class TinyGsmGPSEx<TinyGsmA76xx<modemType>>;
   /*
    * CRTP Helper
    */
@@ -400,6 +403,103 @@ class TinyGsmA76xx : public TinyGsmModem<TinyGsmA76xx<modemType>>,
     return res;
   }
 
+  bool gpsColdStartImpl() {
+    thisModem().sendAT(GF("+CGPSCOLD"));
+    if (thisModem().waitResponse(10000L) != 1) { return false; }
+    return true;
+  }
+
+  bool gpsWarmStartImpl() {
+    thisModem().sendAT(GF("+CGPSWARM"));
+    if (thisModem().waitResponse(10000L) != 1) { return false; }
+    return true;
+  }
+
+  bool gpsHotStartImpl() {
+    thisModem().sendAT(GF("+CGPSHOT"));
+    if (thisModem().waitResponse(10000L) != 1) { return false; }
+    return true;
+  }
+
+  bool getGPS_ExImpl(GPSInfo& info) {
+    float lat = 0;
+    float lon = 0;
+    // +CGNSSINFO:[<mode>],
+    // [<GPS-SVs>],[BEIDOU-SVs],[<GLONASS-SVs>],[<GALILEO-SVs>],
+    // [<lat>],[<N/S>],[<log>],[<E/W>],[<date>],[<UTC-time>],[<alt>],[<speed>],[<course>],[<PDOP>],[HDOP],[VDOP]
+    thisModem().sendAT(GF("+CGNSSINFO"));
+    if (thisModem().waitResponse(GF(GSM_NL "+CGNSSINFO: ")) != 1) { return false; }
+
+    info.isFix = thisModem().streamGetIntBefore(',');  // mode 2=2D Fix or 3=3DFix
+    if (info.isFix == 2 || info.isFix == 3) {
+      int16_t ret = -9999;
+      // GPS-SVs      satellite valid numbers
+      ret                    = thisModem().streamGetIntBefore(',');
+      info.gps_satellite_num = ret != -9999 ? ret : 0;
+      // BEIDOU-SVs   satellite valid numbers
+      ret                       = thisModem().streamGetIntBefore(',');
+      info.beidou_satellite_num = ret != -9999 ? ret : 0;
+      // GLONASS-SVs  satellite valid numbers
+      ret                        = thisModem().streamGetIntBefore(',');
+      info.glonass_satellite_num = ret != -9999 ? ret : 0;
+      // GALILEO-SVs  satellite valid numbers
+      ret                        = thisModem().streamGetIntBefore(',');
+      info.galileo_satellite_num = ret != -9999 ? ret : 0;
+      // Latitude in ddmm.mmmmmm
+      lat = thisModem().streamGetFloatBefore(',');
+      // N/S Indicator, N=north or S=south
+      info.NS_indicator = stream.read();
+      thisModem().streamSkipUntil(',');
+      // Longitude in ddmm.mmmmmm
+      lon = thisModem().streamGetFloatBefore(',');
+      // E/W Indicator, E=east or W=west
+      info.EW_indicator = stream.read();
+      thisModem().streamSkipUntil(',');
+      // Date. Output format is ddmmyy
+      // Two digit day
+      info.day = thisModem().streamGetIntLength(2);
+      // Two digit month
+      info.month = thisModem().streamGetIntLength(2);
+      // Two digit year
+      info.year = thisModem().streamGetIntBefore(',');
+      // UTC Time. Output format is hhmmss.s
+      // Two digit hour
+      info.hour = thisModem().streamGetIntLength(2);
+      // Two digit minute
+      info.minute = thisModem().streamGetIntLength(2);
+      // 4 digit second with subseconds
+      float secondWithSS = thisModem().streamGetFloatBefore(',');
+      info.second        = static_cast<int>(secondWithSS);
+      // MSL Altitude. Unit is meters
+      info.altitude = thisModem().streamGetFloatBefore(',');
+      // Speed Over Ground. Unit is knots.
+      info.speed = thisModem().streamGetFloatBefore(',');
+      // Course Over Ground. Degrees.
+      info.course = thisModem().streamSkipUntil(',');
+      // After set, will report GPS every x seconds
+      thisModem().streamSkipUntil(',');
+      // Position Dilution Of Precision
+      float pdop = thisModem().streamGetFloatBefore(',');
+      info.PDOP  = pdop != -9999.0F ? pdop : 0;
+      // Horizontal Dilution Of Precision
+      float hdop = thisModem().streamGetFloatBefore(',');
+      info.HDOP  = hdop != -9999.0F ? hdop : 0;
+      // Vertical Dilution Of Precision
+      float vdop = thisModem().streamGetFloatBefore(',');
+      info.VDOP  = vdop != -9999.0F ? vdop : 0;
+      thisModem().streamSkipUntil('\n');
+      thisModem().waitResponse();
+      info.latitude  = (lat) * (info.NS_indicator == 'N' ? 1 : -1);
+      info.longitude = (lon) * (info.EW_indicator == 'E' ? 1 : -1);
+      if (info.year < 2000) { info.year += 2000; }
+      return true;
+    }
+
+    thisModem().waitResponse();
+    return false;
+  }
+
+
   // get GPS informations
   bool getGPSImpl(uint8_t* status, float* lat, float* lon, float* speed = 0,
                   float* alt = 0, int* vsat = 0, int* usat = 0, float* accuracy = 0,
@@ -473,6 +573,7 @@ class TinyGsmA76xx : public TinyGsmModem<TinyGsmA76xx<modemType>>,
       if (vsat != NULL) *vsat = ivsat;
       if (usat != NULL) *usat = iusat;
       if (accuracy != NULL) *accuracy = iaccuracy;
+      if (iyear < 2000) { iyear += 2000; }
       if (year != NULL) *year = iyear;
       if (month != NULL) *month = imonth;
       if (day != NULL) *day = iday;
