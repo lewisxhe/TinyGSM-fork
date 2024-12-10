@@ -56,15 +56,15 @@ class TinyGsmGPSEx {
   }
 
   bool gpsColdStart() {
-    return thisModem().gpsColdStartImpl(info);
+    return thisModem().gpsColdStartImpl();
   }
 
   bool gpsWarmStart() {
-    return thisModem().gpsWarmStartImpl(info);
+    return thisModem().gpsWarmStartImpl();
   }
 
   bool gpsHotStart() {
-    return thisModem().gpsHotStartImpl(info);
+    return thisModem().gpsHotStartImpl();
   }
 
   /*
