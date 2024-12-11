@@ -257,7 +257,6 @@ class TinyGsmA76xx : public TinyGsmModem<TinyGsmA76xx<modemType>>,
   }
 
   bool getNetworkActive() {
-    // return thisModem().getNetworkActiveImpl();
     thisModem().sendAT(GF("+NETOPEN?"));
     int res = thisModem().waitResponse(GF("+NETOPEN: 1"));
     if (res == 1) { return true; }
