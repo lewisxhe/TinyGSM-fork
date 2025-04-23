@@ -164,14 +164,11 @@ class TinyGsmSim7000 : public TinyGsmSim70xx<TinyGsmSim7000>,
     return true;
   }
 
-  String getNetworkActiveImpl(){
+  bool getNetworkActiveImpl(){
     sendAT(GF("+CNACT?"));
-    String res;
-    if (waitResponse(GF(GSM_NL "+CNACT: 1")) != 1) { return ""; }
-    streamSkipUntil('\"');
-    res = stream.readStringUntil('\"');
+    if (waitResponse(GF(GSM_NL "+CNACT: 1")) != 1) { return false; }
     waitResponse();
-    return res;
+    return true;
   }
 
   /*
