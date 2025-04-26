@@ -17,16 +17,12 @@
 
 #include "TinyGsmClientSIM70xx.h"
 #include "TinyGsmTCP.tpp"
-#include "TinyGsmSSL.tpp"
 
-class TinyGsmSim7000SSL
-    : public TinyGsmSim70xx<TinyGsmSim7000SSL>,
-      public TinyGsmTCP<TinyGsmSim7000SSL, TINY_GSM_MUX_COUNT>,
-      public TinyGsmSSL<TinyGsmSim7000SSL> {
+class TinyGsmSim7000SSL : public TinyGsmSim70xx<TinyGsmSim7000SSL>,
+                          public TinyGsmTCP<TinyGsmSim7000SSL, TINY_GSM_MUX_COUNT> {
   friend class TinyGsmSim70xx<TinyGsmSim7000SSL>;
   friend class TinyGsmTCP<TinyGsmSim7000SSL, TINY_GSM_MUX_COUNT>;
-  friend class TinyGsmSSL<TinyGsmSim7000SSL>;
-  
+
   /*
    * Inner Client
    */
@@ -217,7 +213,7 @@ class TinyGsmSim7000SSL
  protected:
   bool gprsConnectImpl(const char* apn, const char* user = NULL,
                        const char* pwd = NULL) {
-    gprsDisconnect();
+      gprsDisconnect();
 
     // Define the PDP context
     sendAT(GF("+CGDCONT=1,\"IP\",\""), apn, '"');
@@ -286,11 +282,19 @@ class TinyGsmSim7000SSL
     return true;
   }
 
+  bool setNetworkDeactivateImpl() {
+    if (!getNetworkActiveImpl()) { return true; }
+    sendAT(GF("+CNACT=0"));
+    if (waitResponse(10000L) != 1) { return false; }
+    if (waitResponse(60000L, "+APP PDP: DEACTIVE") != 1) { return false; }
+    return true;
+  }
+
   bool setNetworkActiveImpl() {
     if (getNetworkActiveImpl()) { return true; }
     sendAT(GF("+CNACT=1"));
     if (waitResponse(10000L) != 1) { return false; }
-    return true;
+    return waitResponse(60000L, "+APP PDP: ACTIVE", "+APP PDP: DEACTIVE") == 1;
   }
 
   bool getNetworkActiveImpl() {
@@ -298,86 +302,6 @@ class TinyGsmSim7000SSL
     if (waitResponse(GF(GSM_NL "+CNACT: 1")) != 1) { return false; }
     waitResponse();
     return true;
-  }
-
- protected:
-  bool modemFsInit() {
-    sendAT("+CFSINIT");
-    return waitResponse(3000UL) == 1;
-  }
-
-  bool moodemFsEnd() {
-    sendAT("+CFSTERM");
-    return waitResponse(3000UL) == 1;
-  }
-  /*
-   * SSL functions
-   */
-  bool downloadCertificateImpl(String filename, const char* buffer) {
-    if (!filename.endsWith(".pem") && !filename.endsWith(".crt")) {
-      DBG("The file name must have type like \".pem\" or \".crt\". ");
-      return false;
-    }
-    int filename_length = filename.length() - 4;
-    if (filename_length < 5 || filename_length > 50) {
-      DBG("File name length should less or equal 50 characters.");
-      return false;
-    }
-
-    modemFsInit();
-
-    sendAT("+CFSWFILE=3,", "\"", filename, "\",", "0,", strlen(buffer), ",10000");
-    if (waitResponse(10000UL, "DOWNLOAD") == 1) {
-      stream.write(buffer);
-    } else {
-      moodemFsEnd();
-      return false;
-    }
-
-    if (waitResponse(3000UL) != 1) {
-      DBG("Download certificate failed !");
-      moodemFsEnd();
-      return false;
-    }
-    return moodemFsEnd();
-  }
-
-  bool deleteCertificateImpl(const char* filename) {
-    modemFsInit();
-
-    sendAT("+CFSDFILE=3,\"", filename, "\"");
-    if (waitResponse(3000UL) != 1) {
-      DBG("Delete certificate failed !");
-      moodemFsEnd();
-      return false;
-    }
-
-    return moodemFsEnd();
-  }
-
-  bool sslConfigVersionImpl(uint8_t ctxindex, uint8_t ssl_version) {
-    sendAT("+CSSLCFG=\"sslversion\",", ctxindex, ',', ssl_version);
-    return (waitResponse(5000UL) == 1);
-  }
-
-  bool sslConfigSniImpl(uint8_t ctxindex, const char* server_name) {
-    sendAT("+CSSLCFG=\"sni\",", ctxindex, ",\"", server_name, '"');
-    return (waitResponse(5000UL) == 1);
-  }
-
-  // <ssltype>
-  // 1 QAPI_NET_SSL_CERTIFICATE_E
-  // 2 QAPI_NET_SSL_CA_LIST_E
-  // 3 QAPI_NET_SSL_PSK_TABLE_E
-  bool convertCertificateImpl(uint8_t ssl_type, const char* cert_filename,
-                              const char* private_key_filename = NULL) {
-    if (cert_filename && private_key_filename) {
-      sendAT("+CSSLCFG=convert,", ssl_type, ",", cert_filename, ",",
-             private_key_filename);
-    } else if (cert_filename) {
-      sendAT("+CSSLCFG=convert,", ssl_type, ",", cert_filename);
-    }
-    return (waitResponse(5000UL) == 1);
   }
 
   /*
@@ -466,7 +390,7 @@ class TinyGsmSim7000SSL
         // <cid> Application connection ID (set with AT+CACID above)
         // <certname> certificate name
         sendAT(GF("+CASSLCFG="), mux, ",CACERT,\"", certificates[mux].c_str(),
-               "\"");
+               "\"");        
         if (waitResponse(5000L) != 1) return false;
       }
 

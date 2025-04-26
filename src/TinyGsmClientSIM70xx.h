@@ -21,6 +21,9 @@
 #include "TinyGsmNTP.tpp"
 #include "TinyGsmGSMLocation.tpp"
 #include "TinyGsmGPS_EX.tpp"
+#include "TinyGsmHttpsSIM7xxx.h"
+#include "TinyGsmMqttSIM7xxx.h"
+#include "TinyGsmSSL.tpp"
 
 #define GSM_NL "\r\n"
 static const char GSM_OK[] TINY_GSM_PROGMEM    = "OK" GSM_NL;
@@ -69,7 +72,10 @@ class TinyGsmSim70xx : public TinyGsmModem<TinyGsmSim70xx<modemType>>,
                        public TinyGsmNTP<TinyGsmSim70xx<modemType>>,
                        public TinyGsmBattery<TinyGsmSim70xx<modemType>>,
                        public TinyGsmGSMLocation<TinyGsmSim70xx<modemType>>,
-                       public TinyGsmGPSEx<TinyGsmSim70xx<modemType>> {
+                       public TinyGsmGPSEx<TinyGsmSim70xx<modemType>>,
+                       public TinyGsmHttpsSIM7xxx<TinyGsmSim70xx<modemType>>,
+                       public TinyGsmMqttSIM7xxx<TinyGsmSim70xx<modemType>>,
+                       public TinyGsmSSL<TinyGsmSim70xx<modemType>>{
   friend class TinyGsmModem<TinyGsmSim70xx<modemType>>;
   friend class TinyGsmGPRS<TinyGsmSim70xx<modemType>>;
   friend class TinyGsmSMS<TinyGsmSim70xx<modemType>>;
@@ -79,7 +85,9 @@ class TinyGsmSim70xx : public TinyGsmModem<TinyGsmSim70xx<modemType>>,
   friend class TinyGsmBattery<TinyGsmSim70xx<modemType>>;
   friend class TinyGsmGSMLocation<TinyGsmSim70xx<modemType>>;
   friend class TinyGsmGPSEx<TinyGsmSim70xx<modemType>>;
-
+  friend class TinyGsmHttpsSIM7xxx<TinyGsmSim70xx<modemType>>;
+  friend class TinyGsmMqttSIM7xxx<TinyGsmSim70xx<modemType>>;
+  friend class TinyGsmSSL<TinyGsmSim70xx<modemType>>;
   /*
    * CRTP Helper
    */
@@ -276,6 +284,10 @@ class TinyGsmSim70xx : public TinyGsmModem<TinyGsmSim70xx<modemType>>,
     return thisModem().getLocalIPImpl();
   }
 
+  bool setNetworkDeactivate() {
+    return thisModem().setNetworkDeactivateImpl();
+  }
+
   bool setNetworkActive() {
     return thisModem().setNetworkActiveImpl();
   }
@@ -324,6 +336,89 @@ class TinyGsmSim70xx : public TinyGsmModem<TinyGsmSim70xx<modemType>>,
     thisModem().waitResponse();
     res.trim();
     return res;
+  }
+  /*
+   * FS functions
+   */
+ protected:
+  bool modemFsInit() {
+    thisModem().sendAT("+CFSINIT");
+    return thisModem().waitResponse(3000UL) == 1;
+  }
+
+  bool moodemFsEnd() {
+    thisModem().sendAT("+CFSTERM");
+    return thisModem().waitResponse(3000UL) == 1;
+  }
+
+  /*
+   * SSL functions
+   */
+  bool downloadCertificateImpl(String filename, const char* buffer) {
+    if (!filename.endsWith(".pem") && !filename.endsWith(".crt")) {
+      DBG("The file name must have type like \".pem\" or \".crt\". ");
+      return false;
+    }
+    int filename_length = filename.length() - 4;
+    if (filename_length < 5 || filename_length > 50) {
+      DBG("File name length should less or equal 50 characters.");
+      return false;
+    }
+
+    modemFsInit();
+
+    thisModem().sendAT("+CFSWFILE=3,", "\"", filename, "\",", "0,", strlen(buffer), ",10000");
+    if (thisModem().waitResponse(10000UL, "DOWNLOAD") == 1) {
+      stream.write(buffer);
+    } else {
+      moodemFsEnd();
+      return false;
+    }
+
+    if (thisModem().waitResponse(3000UL) != 1) {
+      DBG("Download certificate failed !");
+      moodemFsEnd();
+      return false;
+    }
+    return moodemFsEnd();
+  }
+
+  bool deleteCertificateImpl(const char* filename) {
+    modemFsInit();
+
+    thisModem().sendAT("+CFSDFILE=3,\"", filename, "\"");
+    if (thisModem().waitResponse(3000UL) != 1) {
+      DBG("Delete certificate failed !");
+      moodemFsEnd();
+      return false;
+    }
+
+    return moodemFsEnd();
+  }
+
+  bool sslConfigVersionImpl(uint8_t ctxindex, uint8_t ssl_version) {
+    thisModem().sendAT("+CSSLCFG=\"sslversion\",", ctxindex, ',', ssl_version);
+    return (thisModem().waitResponse(5000UL) == 1);
+  }
+
+  bool sslConfigSniImpl(uint8_t ctxindex, const char* server_name) {
+    thisModem().sendAT("+CSSLCFG=\"sni\",", ctxindex, ",\"", server_name, '"');
+    return (thisModem().waitResponse(5000UL) == 1);
+  }
+
+  // <ssltype>
+  // 1 QAPI_NET_SSL_CERTIFICATE_E
+  // 2 QAPI_NET_SSL_CA_LIST_E
+  // 3 QAPI_NET_SSL_PSK_TABLE_E
+  bool convertCertificateImpl(uint8_t ssl_type, const char* cert_filename,
+                              const char* private_key_filename = NULL) {
+    if (cert_filename && private_key_filename) {
+      thisModem().sendAT("+CSSLCFG=convert,", ssl_type, ",", cert_filename, ",",
+             private_key_filename);
+    } else if (cert_filename) {
+      thisModem().sendAT("+CSSLCFG=convert,", ssl_type, ",", cert_filename);
+    }
+    return (thisModem().waitResponse(5000UL) == 1);
   }
 
   /*
