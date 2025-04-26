@@ -45,7 +45,7 @@ public:
      * Basic functions
      */
 
-    bool https_begin(uint8_t ctxindex = 1, const char* ca_filename = NULL)
+    bool https_begin(uint8_t ctxindex = 1, const char *ca_filename = NULL)
     {
         _ctxindex = ctxindex;
 
@@ -98,7 +98,7 @@ public:
                        ServerSSLVersion ssl_version = TINYGSM_SSL_TLS1_2)
     {
         if (url.length() > 64) {
-            log_e("URL too long ,max lenght is 64bytes");
+            log_e("URL too long ,max length is 64bytes");
             return false;
         }
         if (!extractURLParts(url, _pathParam, _baseDomain)) {
@@ -150,12 +150,12 @@ public:
         return https_add_header("User-Agent", userAgent);
     }
 
-    bool https_set_content_type(const char* contentType)
+    bool https_set_content_type(const char *contentType)
     {
         return https_add_header("Content-Type", contentType);
     }
 
-    bool https_set_accept_type(const char* acceptType)
+    bool https_set_accept_type(const char *acceptType)
     {
         return https_add_header("ACCEPT", acceptType);
     }
@@ -170,7 +170,7 @@ public:
         return https_add_header(name.c_str(), value.c_str());
     }
 
-    bool https_add_header(const char* name, const char* value)
+    bool https_add_header(const char *name, const char *value)
     {
         thisModem().sendAT("+SHAHEAD=\"", name, "\",\"", value, "\"");
         if (thisModem().waitResponse(3000) != 1) {
@@ -184,7 +184,7 @@ public:
         return false;
     }
 
-    int https_get(size_t* bodyLength = NULL)
+    int https_get(size_t *bodyLength = NULL)
     {
         thisModem().sendAT("+SHREQ=\"", _pathParam, "\",1");
         if (thisModem().waitResponse(3000) != 1) {
@@ -211,7 +211,7 @@ public:
         return "SIM70XX MODEM does not support getting request header";
     }
 
-    int https_body(uint8_t* buffer, int buffer_size)
+    int https_body(uint8_t *buffer, int buffer_size)
     {
         if (!buffer || !buffer_size) {
             return 0;
@@ -243,7 +243,7 @@ public:
             return "";
         }
 
-        uint8_t *buffer = (uint8_t*)TINY_GSM_MALLOC(total + 1);
+        uint8_t *buffer = (uint8_t *)TINY_GSM_MALLOC(total + 1);
         if (!buffer) {
             thisModem().stream.flush();
             return "";
@@ -267,7 +267,7 @@ public:
         } while (total != offset);
         thisModem().waitResponse(5000UL, "+SHREAD: 0");
         buffer[total] = '\0';
-        String body   = String((const char*)buffer);
+        String body   = String((const char *)buffer);
         free(buffer);
         return body;
     }
@@ -277,24 +277,17 @@ public:
         return _bodyLength;
     }
 
-    int https_post(uint8_t* payload, size_t size, uint32_t inputTimeout = 10000)
+    int https_post(const char *payload, size_t size, uint32_t inputTimeout = 10000)
     {
         if (size > TINYGSM_SIM7XXX_HTTP_BODY_MAX_LEN) {
-            log_e("SIM7XXX max body lenght is 1024 bytes");
+            log_e("SIM7XXX max body length is 1024 bytes");
             return -1;
         }
         if (payload == NULL || size == 0) {
             return -1;
         }
         if (payload) {
-            // thisModem().sendAT("+SHBOD=", payload, ",", size);
-
-            thisModem().stream.write("AT+SHBOD=\"");
-            thisModem().stream.write(payload, size);
-            thisModem().stream.write("\"");
-            thisModem().stream.write(",");
-            thisModem().stream.println(size);
-
+            thisModem().sendAT("+SHBOD=", '"', (char *)payload, '"', ',', size);
             if (thisModem().waitResponse(30000UL) != 1) {
                 return -1;
             }
@@ -304,21 +297,33 @@ public:
             }
             if (thisModem().waitResponse(60000UL, "+SHREQ:") == 1) {
                 thisModem().streamSkipUntil(',');
-                int status = thisModem().streamGetIntBefore(',');
+                int status  = thisModem().streamGetIntBefore(',');
                 _bodyLength = thisModem().streamGetIntBefore('\r');
-                DBG("status:");
-                DBG(status);
-                DBG("length:");
-                DBG(_bodyLength);
+                DBG("status:", status, "length:", _bodyLength);
                 return status;
             }
         }
         return -1;
     }
 
-    int https_post(const String &payload)
+
+    /**
+     * @brief  https_post
+     * @note  If the uploaded payload contains escape characters, the effective upload
+     * length should not contain escape characters.
+     * @param  payload: string payload
+     * @param  remove_escape_char: true, Remove escape characters ,false does not remove
+     * escape characters
+     * @retval http code
+     */
+    int https_post(const String &payload, bool remove_escape_char = false)
     {
-        return https_post((uint8_t*)payload.c_str(), payload.length());
+        size_t payload_length = payload.length();
+        if (remove_escape_char) {
+            int escape_count = countEscapeCharacters(payload);
+            payload_length -= escape_count;
+        }
+        return https_post(payload.c_str(), payload_length);
     }
 
     /**
@@ -365,7 +370,7 @@ public:
      * @retval httpCode, -1 = failed
      */
     // ! No TEST
-    int https_post_file(const char* filepath, uint8_t method = 1, bool sendFileAsBody = 1)
+    int https_post_file(const char *filepath, uint8_t method = 1, bool sendFileAsBody = 1)
     {
         // AT+HTTPPOSTFILE=<filename>[,<path>[,<method>[,<send_header>]]]
         uint8_t path = 1;
@@ -382,19 +387,30 @@ public:
         if (thisModem().waitResponse(150000UL, "+HTTPPOSTFILE:") == 1) {
             int action = thisModem().streamGetIntBefore(',');
             int status = thisModem().streamGetIntBefore(',');
-            int lenght = thisModem().streamGetIntBefore('\r');
+            int length = thisModem().streamGetIntBefore('\r');
             DBG("action:");
             DBG(action);
             DBG("status:");
             DBG(status);
-            DBG("lenght:");
-            DBG(lenght);
+            DBG("length:");
+            DBG(length);
             return status;
         }
         return -1;
     }
 
 private:
+    int countEscapeCharacters(String str)
+    {
+        int count = 0;
+        for (int i = 0; i < str.length(); i++) {
+            if (str.charAt(i) == '\\') {
+                count++;
+            }
+        }
+        return count;
+    }
+
     bool extractURLParts(String url, String &pathParam, String &baseDomain)
     {
         if (url.indexOf("://") == -1) {
