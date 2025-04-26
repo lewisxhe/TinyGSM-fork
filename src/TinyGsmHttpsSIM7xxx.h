@@ -277,6 +277,20 @@ public:
         return _bodyLength;
     }
 
+    /**
+     * @brief Sends an HTTPS POST request with a raw payload.
+     *
+     * This function sends an HTTPS POST request using the provided payload. It checks
+     * the size of the payload to ensure it does not exceed the maximum allowed length.
+     * It then configures the HTTP body and sends the request.
+     *
+     * @param payload A pointer to the raw payload data to be sent in the request.
+     * @param size The size of the payload in bytes.
+     * @param inputTimeout The timeout value (in milliseconds) for waiting for responses
+     *                     during the request process. Defaults to 10000 milliseconds.
+     * @return The HTTP status code of the response if the request is successful, -1
+     * otherwise.
+     */
     int https_post(const char *payload, size_t size, uint32_t inputTimeout = 10000)
     {
         if (size > TINYGSM_SIM7XXX_HTTP_BODY_MAX_LEN) {
@@ -308,22 +322,38 @@ public:
 
 
     /**
-     * @brief  https_post
-     * @note  If the uploaded payload contains escape characters, the effective upload
-     * length should not contain escape characters.
-     * @param  payload: string payload
-     * @param  remove_escape_char: true, Remove escape characters ,false does not remove
-     * escape characters
-     * @retval http code
+     * @brief Sends an HTTPS POST request with a String payload.
+     *
+     * This is a wrapper function that converts a String object to a C-style string
+     * and its length, then calls the https_post function with raw payload parameters.
+     *
+     * @param payload The String object containing the payload data to be sent in the
+     * request.
+     * @return The HTTP status code of the response if the request is successful, -1
+     * otherwise.
      */
-    int https_post(const String &payload, bool remove_escape_char = false)
+    int https_post(const String &payload)
     {
-        size_t payload_length = payload.length();
-        if (remove_escape_char) {
-            int escape_count = countEscapeCharacters(payload);
-            payload_length -= escape_count;
-        }
-        return https_post(payload.c_str(), payload_length);
+        return https_post(payload.c_str(), payload.length());
+    }
+
+    /**
+     * @brief Sends an HTTPS POST request with a JSON-formatted String payload.
+     *
+     * This function first escapes the double quotes in the JSON string, then sends
+     * an HTTPS POST request using the processed JSON data. It logs both the original
+     * and processed JSON strings for debugging purposes.
+     *
+     * @param json The String object containing the JSON data to be sent in the request.
+     * @return The HTTP status code of the response if the request is successful, -1
+     * otherwise.
+     */
+    int https_post_json_format(const String &json)
+    {
+        String payload = escapeQuotes(json);
+        // log_d("InputJSON:%s", json.c_str());
+        // log_d("ProcessStr:%s", payload.c_str());
+        return https_post(payload.c_str(), json.length());
     }
 
     /**
@@ -400,15 +430,17 @@ public:
     }
 
 private:
-    int countEscapeCharacters(String str)
+    // This function is used to check and escape double quotes in a string.
+    String escapeQuotes(const String &input)
     {
-        int count = 0;
-        for (int i = 0; i < str.length(); i++) {
-            if (str.charAt(i) == '\\') {
-                count++;
+        String result;
+        for (int i = 0; i < input.length(); i++) {
+            if (input[i] == '"') {
+                result += '\\';
             }
+            result += input[i];
         }
-        return count;
+        return result;
     }
 
     bool extractURLParts(String url, String &pathParam, String &baseDomain)
