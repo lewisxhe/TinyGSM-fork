@@ -158,9 +158,18 @@ class TinyGsmSim7000 : public TinyGsmSim70xx<TinyGsmSim7000>,
     return res;
   }
 
+  bool setNetworkDeactivateImpl() {
+    if (!getNetworkActiveImpl()) { return true; }
+    sendAT(GF("+CNACT=0"));
+    if (waitResponse(10000L) != 1) { return false; }
+    if (waitResponse(60000L,"+APP PDP: DEACTIVE") != 1) { return false; }
+    return true;
+  }
+
   bool setNetworkActiveImpl(){
     sendAT(GF("+CNACT=1"));
     if (waitResponse(10000L) != 1) { return false; }
+    if (waitResponse(60000L,"+APP PDP: ACTIVE") != 1) { return false; }
     return true;
   }
 
