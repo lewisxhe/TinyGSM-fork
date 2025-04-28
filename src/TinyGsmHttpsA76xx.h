@@ -257,7 +257,21 @@ public:
         return length;
     }
 
-    int https_post(uint8_t *payload, size_t size, uint32_t inputTimeout = 10000)
+    /**
+     * @brief Sends an HTTPS POST request with a raw payload.
+     *
+     * This function sends an HTTPS POST request using the provided payload. It checks
+     * the size of the payload to ensure it does not exceed the maximum allowed length.
+     * It then configures the HTTP body and sends the request.
+     *
+     * @param payload A pointer to the raw payload data to be sent in the request.
+     * @param size The size of the payload in bytes.
+     * @param inputTimeout The timeout value (in milliseconds) for waiting for responses
+     *                     during the request process. Defaults to 10000 milliseconds.
+     * @return The HTTP status code of the response if the request is successful, -1
+     * otherwise.
+     */
+    int https_post(const char *payload, size_t size, uint32_t inputTimeout = 10000)
     {
         if (payload) {
             thisModem().sendAT("+HTTPDATA=", size, ",", inputTimeout);
@@ -285,11 +299,36 @@ public:
         return -1;
     }
 
+    /**
+     * @brief Sends an HTTPS POST request with a String payload.
+     *
+     * This is a wrapper function that converts a String object to a C-style string
+     * and its length, then calls the https_post function with raw payload parameters.
+     *
+     * @param payload The String object containing the payload data to be sent in the
+     * request.
+     * @return The HTTP status code of the response if the request is successful, -1
+     * otherwise.
+     */
     int https_post(const String &payload)
     {
-        return https_post((uint8_t *) payload.c_str(), payload.length());
+        return https_post(payload.c_str(), payload.length());
     }
 
+
+    /**
+     * @brief Sends an HTTPS POST request with a JSON-formatted String payload.
+     *
+     * This method is the same as the https_post method, just to unify the API for compatibility with the examples
+     *
+     * @param json The String object containing the JSON data to be sent in the request.
+     * @return The HTTP status code of the response if the request is successful, -1
+     * otherwise.
+     */
+    int https_post_json_format(const String &json)
+    {
+        return https_post(json.c_str(), json.length());
+    }
 
     /**
      * @brief  POSTFile
