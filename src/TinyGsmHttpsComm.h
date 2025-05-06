@@ -417,12 +417,18 @@ class TinyGsmHttpsComm {
    * This function calls the `https_method` function to perform an HTTP PUT request,
    * passing the provided C-style string and its length as the request payload.
    *
+   * SIM7600X NOT SUPPORT HTTP PUT METHOD
+   *
    * @param payload A pointer to a character array containing the request payload data.
    * @param size The size of the request payload data in bytes.
    * @return int The return value of the `https_method` function, indicating the result of
    * the request.
    */
   int https_put(const char* payload, size_t size) {
+    if (platform == QUALCOMM_SIM7600G) {
+      log_e("SIM7600 NOT SUPPORT HTTP PUT METHOD");
+      return -1;
+    }
     return https_method(TINYGSM_HTTP_PUT, payload, size);
   }
 
@@ -433,11 +439,17 @@ class TinyGsmHttpsComm {
    * converting the provided `String` object to a C-style string and passing its length as
    * the request payload.
    *
+   * SIM7600X NOT SUPPORT HTTP PUT METHOD
+   * 
    * @param payload A reference to a `String` object containing the request payload data.
    * @return int The return value of the `https_method` function, indicating the result of
    * the request.
    */
   int https_put(const String& payload) {
+    if (platform == QUALCOMM_SIM7600G) {
+      log_e("SIM7600 NOT SUPPORT HTTP PUT METHOD");
+      return -1;
+    }
     return https_method(TINYGSM_HTTP_PUT, payload.c_str(), payload.length());
   }
 
