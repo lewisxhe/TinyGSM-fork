@@ -375,12 +375,12 @@ class TinyGsmA76xx : public TinyGsmModem<TinyGsmA76xx<modemType>>,
     return true;
   }
 
-  bool disableGPSImpl(int8_t power_en_pin, uint8_t disbale_level) {
+  bool disableGPSImpl(int8_t power_en_pin, uint8_t disable_level) {
     if (power_en_pin == GSM_MODEM_AUX_POWER) {
       thisModem().sendAT("+CVAUXS=0");
       thisModem().waitResponse();
     } else if (power_en_pin != -1) {
-      thisModem().sendAT("+CGSETV=", power_en_pin, ",", disbale_level);
+      thisModem().sendAT("+CGSETV=", power_en_pin, ",", disable_level);
       thisModem().waitResponse();
       thisModem().sendAT("+CGDRT=", power_en_pin, ",0");
       thisModem().waitResponse();

@@ -536,9 +536,9 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
     return true;
   }
 
-  bool disableGPSImpl(int8_t power_en_pin ,uint8_t disbale_level) {
+  bool disableGPSImpl(int8_t power_en_pin ,uint8_t disable_level) {
     if(power_en_pin!= -1){
-      sendAT("+CGSETV=",power_en_pin,",",disbale_level);
+      sendAT("+CGSETV=",power_en_pin,",",disable_level);
       waitResponse();
       sendAT("+CGDRT=",power_en_pin,",0");
       waitResponse();
