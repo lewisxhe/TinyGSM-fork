@@ -266,6 +266,22 @@ class TinyGsmA76xx : public TinyGsmModem<TinyGsmA76xx<modemType>>,
     return false;
   }
 
+  String getNetworkAPN() {
+    thisModem().sendAT("+CGDCONT?");
+    if (thisModem().waitResponse(GF(GSM_NL "+CGDCONT: ")) != 1) { return "ERROR"; }
+    thisModem().streamSkipUntil(',');
+    thisModem().streamSkipUntil(',');
+    thisModem().streamSkipUntil('\"');
+    String res = thisModem().stream.readStringUntil('\"');
+    thisModem().waitResponse();
+    if (res == "") { res = "APN IS NOT SET"; }
+    return res;
+  }
+
+  bool setNetworkAPN(String apn) {
+    thisModem().sendAT(GF("+CGDCONT=1,\"IP\",\""), apn, "\"");
+    return thisModem().waitResponse() == 1;
+  }
 
   /*
    * Return code:
