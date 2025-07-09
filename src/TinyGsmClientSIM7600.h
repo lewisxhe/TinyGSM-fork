@@ -29,6 +29,7 @@
 #include "TinyGsmGPS_EX.tpp"
 #include "TinyGsmMqttA76xx.h"
 #include "TinyGsmHttpsComm.h"
+#include "TinyGsmTextToSpeech.tpp"
 
 #define GSM_NL "\r\n"
 static const char GSM_OK[] TINY_GSM_PROGMEM    = "OK" GSM_NL;
@@ -74,6 +75,7 @@ class TinyGsmSim7600 : public TinyGsmModem<TinyGsmSim7600>,
                        public TinyGsmTemperature<TinyGsmSim7600>,
                        public TinyGsmCalling<TinyGsmSim7600>,
                        public TinyGsmGPSEx<TinyGsmSim7600>,
+                       public TinyGsmTextToSpeech<TinyGsmSim7600>,
                        public TinyGsmMqttA76xx<TinyGsmSim7600, TINY_GSM_MQTT_CLI_COUNT>,
                        public TinyGsmHttpsComm<TinyGsmSim7600, QUALCOMM_SIM7600G> {
   friend class TinyGsmModem<TinyGsmSim7600>;
@@ -90,7 +92,7 @@ class TinyGsmSim7600 : public TinyGsmModem<TinyGsmSim7600>,
   friend class TinyGsmMqttA76xx<TinyGsmSim7600, TINY_GSM_MQTT_CLI_COUNT>;
   friend class TinyGsmHttpsComm<TinyGsmSim7600, QUALCOMM_SIM7600G>;
   friend class TinyGsmGPSEx<TinyGsmSim7600>;
-
+  friend class TinyGsmTextToSpeech<TinyGsmSim7600>;
   /*
    * Inner Client
    */
@@ -906,6 +908,17 @@ class TinyGsmSim7600 : public TinyGsmModem<TinyGsmSim7600>,
     // Wait for final OK
     waitResponse();
     return res;
+  }
+
+  /*
+   * Text to speech functions
+   */
+ protected:
+  bool textToSpeechImpl(String& text, uint8_t mode) {
+    sendAT(GF("+CTTS="), mode, ',', '"', text, '"');
+    if (waitResponse() != 1) { return false; }
+    if (waitResponse(10000UL, GF("+CTTS: 0")) != 1) { return false; }
+    return true;
   }
 
   /*
