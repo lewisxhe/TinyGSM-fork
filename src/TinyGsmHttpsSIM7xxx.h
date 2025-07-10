@@ -49,6 +49,7 @@ public:
     {
         _ctxindex = ctxindex;
 
+        // Make sure the previous connection is disconnected
         https_end();
 
         // set sni
@@ -73,8 +74,9 @@ public:
         thisModem().sendAT("+SHCONF=\"TIMEOUT\",60");
         thisModem().waitResponse();
 
-        thisModem().sendAT("+SHCPARA");
-        thisModem().waitResponse();
+        // Must be executed after the connection.
+        // thisModem().sendAT("+SHCPARA");
+        // thisModem().waitResponse();
 
         _pathParam        = "";
         _baseDomain       = "";
@@ -181,24 +183,11 @@ public:
 
     int https_get(size_t *bodyLength = NULL)
     {
-        thisModem().sendAT("+SHREQ=\"", _pathParam, "\",1");
-        if (thisModem().waitResponse(3000) != 1) {
-            return false;
+        int ret =  https_method(TINYGSM_HTTP_GET, NULL, 0);
+        if (bodyLength) {
+            *bodyLength = _bodyLength;
         }
-        if (thisModem().waitResponse(60000UL, "+SHREQ:") == 1) {
-            thisModem().streamSkipUntil(',');
-            int status  = thisModem().streamGetIntBefore(',');
-            _bodyLength = thisModem().streamGetLongLongBefore('\r');
-            DBG("status:");
-            DBG(status);
-            DBG("length:");
-            DBG(_bodyLength);
-            if (bodyLength) {
-                *bodyLength = _bodyLength;
-            }
-            return status;
-        }
-        return -1;
+        return ret;
     }
 
     String https_header()
@@ -296,21 +285,7 @@ public:
             return -1;
         }
         if (payload) {
-            thisModem().sendAT("+SHBOD=", '"', (char *)payload, '"', ',', size);
-            if (thisModem().waitResponse(30000UL) != 1) {
-                return -1;
-            }
-            thisModem().sendAT("+SHREQ=\"", _pathParam, "\",", TINYGSM_HTTP_POST);
-            if (thisModem().waitResponse(30000UL) != 1) {
-                return -1;
-            }
-            if (thisModem().waitResponse(60000UL, "+SHREQ:") == 1) {
-                thisModem().streamSkipUntil(',');
-                int status  = thisModem().streamGetIntBefore(',');
-                _bodyLength = thisModem().streamGetIntBefore('\r');
-                DBG("status:", status, "length:", _bodyLength);
-                return status;
-            }
+            return https_method(TINYGSM_HTTP_POST, payload, size);
         }
         return -1;
     }
@@ -349,6 +324,42 @@ public:
         // log_d("InputJSON:%s", json.c_str());
         // log_d("ProcessStr:%s", payload.c_str());
         return https_post(payload.c_str(), json.length());
+    }
+
+    /**
+     * @brief Perform an HTTP PUT request with a C-style string payload.
+     *
+     * This function calls the `https_method` function to perform an HTTP PUT request,
+     * passing the provided C-style string and its length as the request payload.
+     *
+     * SIM7600X NOT SUPPORT HTTP PUT METHOD
+     *
+     * @param payload A pointer to a character array containing the request payload data.
+     * @param size The size of the request payload data in bytes.
+     * @return int The return value of the `https_method` function, indicating the result of
+     * the request.
+     */
+    int https_put(const char* payload, size_t size)
+    {
+        return https_method(TINYGSM_HTTP_PUT, payload, size);
+    }
+
+    /**
+     * @brief Perform an HTTP PUT request with a `String` object payload.
+     *
+     * This function calls the `https_method` function to perform an HTTP PUT request,
+     * converting the provided `String` object to a C-style string and passing its length as
+     * the request payload.
+     *
+     * SIM7600X NOT SUPPORT HTTP PUT METHOD
+     *
+     * @param payload A reference to a `String` object containing the request payload data.
+     * @return int The return value of the `https_method` function, indicating the result of
+     * the request.
+     */
+    int https_put(const String &payload)
+    {
+        return https_method(TINYGSM_HTTP_PUT, payload.c_str(), payload.length());
     }
 
     /**
@@ -456,6 +467,27 @@ private:
         }
         return true;
     }
+
+    int https_method(HttpMethod method, const char* payload, size_t size,
+                     uint32_t inputTimeout = 10000)
+    {
+        if (payload) {
+            thisModem().sendAT("+SHBOD=", '"', (char *)payload, '"', ',', size);
+            if (thisModem().waitResponse(30000UL) != 1) {
+                return -1;
+            }
+        }
+        thisModem().sendAT("+SHREQ=\"", _pathParam, "\",", method);
+        if (thisModem().waitResponse(60000UL, "+SHREQ:") == 1) {
+            thisModem().streamSkipUntil(',');
+            int    status = thisModem().streamGetIntBefore(',');
+            _bodyLength = thisModem().streamGetLongLongBefore('\r');
+            log_d("Method:%d http code:%d length:%u", method, status, _bodyLength);
+            return status;
+        }
+        return -1;
+    }
+
     /*
      * CRTP Helper
      */
