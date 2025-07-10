@@ -39,11 +39,18 @@ private:
     size_t      _bodyOffset;
     uint8_t     _ctxindex;
     const char *_root_ca_filename;
+    uint32_t   _resp_timeout = UINT32_MAX;
 
 public:
     /*
      * Basic functions
      */
+
+    // Set the timeout for HTTPS requests. The default value is UINT32_MAX.
+    void https_set_timeout(uint32_t timeout_ms)
+    {
+        _resp_timeout = timeout_ms;
+    }
 
     bool https_begin(uint8_t ctxindex = 1, const char *ca_filename = NULL)
     {
@@ -213,7 +220,7 @@ public:
             return 0;
         }
         thisModem().streamGetIntBefore('\r');
-        thisModem().streamGetIntBefore('\r');
+        thisModem().streamGetIntBefore('\n');
         _bodyLength -= length;
         _bodyOffset += length;
         return thisModem().stream.readBytes(buffer, length);
@@ -478,7 +485,7 @@ private:
             }
         }
         thisModem().sendAT("+SHREQ=\"", _pathParam, "\",", method);
-        if (thisModem().waitResponse(60000UL, "+SHREQ:") == 1) {
+        if (thisModem().waitResponse(_resp_timeout, "+SHREQ:") == 1) {
             thisModem().streamSkipUntil(',');
             int    status = thisModem().streamGetIntBefore(',');
             _bodyLength = thisModem().streamGetLongLongBefore('\r');
