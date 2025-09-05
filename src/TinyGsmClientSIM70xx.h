@@ -545,11 +545,19 @@ public:
   }
 
   bool setGPSBaudImpl(uint32_t baud) {
+    if(model == QUALCOMM_SIM7080G){
+      //TODO:
+      return true;
+    }
     thisModem().sendAT("+CGNSUTIPR=",baud);
     return thisModem().waitResponse(1000UL) == 1;
   }
 
   bool setGPSModeImpl(uint8_t mode) {
+    if(model == QUALCOMM_SIM7080G){
+      //TODO:
+      return true;
+    }
     thisModem().sendAT("+CGNSMOD=1,", 
                         (mode & GNSS_MODE_GLONASS)  ? "1" : "0", ',',
                         (mode & GNSS_MODE_BDS)   ? "1" : "0", ',',
@@ -558,6 +566,10 @@ public:
   }
 
   bool setGPSOutputRateImpl(uint8_t rate_hz) {
+    if(model == QUALCOMM_SIM7080G){
+      //TODO:
+      return true;
+    }
     if (rate_hz <= 0) {
         return false; 
     }
@@ -573,6 +585,10 @@ public:
   }
 
   bool enableNMEAImpl(bool outputAtPort) {
+    if(model == QUALCOMM_SIM7080G){
+      //TODO:
+      return true;
+    }
     // 7070G 2019.11.07 Delete commands,see datasheet  Version History
     thisModem().sendAT("+CGNSPORT=3");
     thisModem().waitResponse(1000UL);
@@ -593,12 +609,17 @@ public:
   }
 
   bool disableNMEAImpl() {
+    if(model == QUALCOMM_SIM7080G){
+      // TODO:
+      return true;
+    }
     thisModem().sendAT("+CGNSTST=0");
     return thisModem().waitResponse(1000L) == 1;
   }
 
   bool configNMEASentenceImpl(uint32_t nmea_mask){
     if(model == QUALCOMM_SIM7080G){
+      // TODO:
       thisModem().sendAT("+SGNSCFG=\"NMEATYPE\",",nmea_mask);
     }else{
       thisModem().sendAT("+CGNSNMEA=",nmea_mask);
@@ -778,17 +799,29 @@ public:
 public:
 
   bool configGNSS_OutputPort(GNSS_OutputPort port) {
-    thisModem().sendAT("+CGNSPWR=1");
-    if(thisModem().waitResponse() != 1){
-      return false;
-    }
     if(model == QUALCOMM_SIM7080G){
+      
+      thisModem().sendAT("+CGNSPWR=0");
+      thisModem().waitResponse();
+
       thisModem().sendAT("+SGNSCFG=\"NMEAOUTPORT\",",port);
+      if (thisModem().waitResponse() != 1) {
+        return false; 
+      }
+      // AT+SGNSCMD=2,1000,0,1
+      thisModem().sendAT("+SGNSCMD=2,1000,0,1");
+      if (thisModem().waitResponse() != 1) {
+        return false; 
+      }
     }else{
+      thisModem().sendAT("+CGNSPWR=1");
+      if(thisModem().waitResponse() != 1){
+        return false;
+      }
       thisModem().sendAT("+CGNSCFG=",port);
-    }
-    if (thisModem().waitResponse() != 1) {
-       return false; 
+      if (thisModem().waitResponse() != 1) {
+        return false; 
+      }
     }
     return true;
   }
