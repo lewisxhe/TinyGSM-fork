@@ -800,19 +800,27 @@ public:
 
   bool configGNSS_OutputPort(GNSS_OutputPort port) {
     if(model == QUALCOMM_SIM7080G){
+
+      thisModem().sendAT("+SGNSCMD=0");
+      thisModem().waitResponse();
       
       thisModem().sendAT("+CGNSPWR=0");
       thisModem().waitResponse();
+
+      if(port == NMEA_OUTPUT_DISABLE){
+        return true;
+      }
 
       thisModem().sendAT("+SGNSCFG=\"NMEAOUTPORT\",",port);
       if (thisModem().waitResponse() != 1) {
         return false; 
       }
-      // AT+SGNSCMD=2,1000,0,1
+
       thisModem().sendAT("+SGNSCMD=2,1000,0,1");
       if (thisModem().waitResponse() != 1) {
         return false; 
       }
+
     }else{
       thisModem().sendAT("+CGNSPWR=1");
       if(thisModem().waitResponse() != 1){
