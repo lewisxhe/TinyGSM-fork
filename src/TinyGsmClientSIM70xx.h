@@ -661,11 +661,13 @@ public:
     float lat = 0;
     float lon = 0;
     memset(&info, 0, sizeof(info));
-    // +CGNSINF:
-    // <GNSS run status>,<Fix status>,<UTC date & Time>,<Latitude>,<Longitude>,<MSL
-    // Altitude>,<Speed Over Ground>, <Course Over Ground>,<Fix
-    // Mode>,<Reserved1>,<HDOP>,<PDOP>,<VDOP>,<Reserved2>,<GNSS Satellites in View>,
-    // <GNSS Satellites Used>,<GLONASS Satellites Used>,<Reserved3>,<C/N0 max>,<HPA>,<VPA>
+    // GNSS Navigation Information Parsed From NMEA Sentences
+    // SIM7000G +CGNSINF: <GNSS run status>,<Fix status>,<UTC date & Time>,<Latitude>,<Longitude>,<MSL Altitude>,<Speed Over Ground>,<Course Over Ground>,<FixMode>,<Reserved1>,<HDOP>,<PDOP>,<VDOP>,<Reserved2>,<GNSS Satellites in View>,<GNSSS atellites Used>,<GLONASSS atellites Used>,<Reserved3>,<C/N0 max>,<HPA>,<VPA>
+    // SIM7080G +CGNSINF: <GNSS run status>,<Fix status>,<UTC date & Time>,<Latitude>,<Longitude>,<MSL Altitude>,<Speed Over Ground>,<Course Over Ground>,<FixMode>,<Reserved1>,<HDOP>,<PDOP>,<VDOP>,<Reserved2>,<GNSS Satellites in View>,<Reserved3>,<HPA>,<VPA>
+    // SIM7070G +CGNSINF: <GNSS run status>,<Fix status>,<UTC date & Time>,<Latitude>,<Longitude>,<MSL Altitude>,<Speed Over Ground>,<Course Over Ground>,<FixMode>,<Reserved1>,<HDOP>,<PDOP>,<VDOP>,<Reserved2>,<GNSS Satellites in View>,<Reserved3>,<HPA>,<VPA>
+    // +CGNSINF: 1,1,20251028032811.000,11.655862,123.060223,83.599,0.00,,0,,1.3,1.5,0.9,,8,,25.5,15.5
+
+
     thisModem().sendAT(GF("+CGNSINF"));
     if (thisModem().waitResponse(GF(GSM_NL "+CGNSINF: ")) != 1) { return false; }
 
@@ -679,37 +681,49 @@ public:
     info.isFix = thisModem().streamGetIntBefore(',');
     if (info.isFix == 1) {
       // UTC date & Time
-      info.year   = thisModem().streamGetIntLength(4);  // Four digit year
-      info.month  = thisModem().streamGetIntLength(2);  // Two digit month
-      info.day    = thisModem().streamGetIntLength(2);  // Two digit day
-      info.hour   = thisModem().streamGetIntLength(2);  // Two digit hour
-      info.minute = thisModem().streamGetIntLength(2);  // Two digit minute
-      float secondWithSS =
-          thisModem().streamGetFloatBefore(',');  // 6 digit second with subseconds
+      info.year   = thisModem().streamGetIntLength(4);    // Four digit year
+      info.month  = thisModem().streamGetIntLength(2);    // Two digit month
+      info.day    = thisModem().streamGetIntLength(2);    // Two digit day
+      info.hour   = thisModem().streamGetIntLength(2);    // Two digit hour
+      info.minute = thisModem().streamGetIntLength(2);    // Two digit minute
+      float secondWithSS = thisModem().streamGetFloatBefore(',');  // 6 digit second with subseconds
       info.second = static_cast<int>(secondWithSS);
-
       info.latitude  = thisModem().streamGetFloatBefore(',');  // Latitude
       info.longitude = thisModem().streamGetFloatBefore(',');  // Longitude
-      info.altitude =
-          thisModem().streamGetFloatBefore(',');  // MSL Altitude. Unit is meters
-      info.speed =
-          thisModem().streamGetFloatBefore(',');  // Speed Over Ground. Unit is knots.
-      info.course = thisModem().streamSkipUntil(',');  // Course Over Ground. Degrees.
-      thisModem().streamSkipUntil(',');                // Fix Mode
-      thisModem().streamSkipUntil(',');                // Reserved1
-      info.HDOP =
-          thisModem().streamGetFloatBefore(',');       // Horizontal Dilution Of Precision
-      info.PDOP = thisModem().streamSkipUntil(',');    // Position Dilution Of Precision
-      info.VDOP = thisModem().streamSkipUntil(',');    // Vertical Dilution Of Precision
-      thisModem().streamSkipUntil(',');                // Reserved2
-      info.GSV = thisModem().streamGetIntBefore(',');  // GNSS Satellites in View
-      info.GSU = thisModem().streamGetIntBefore(',');  // GNSS Satellites Used
-      info.glonass_satellite_num =
-          thisModem().streamSkipUntil(',');  // GLONASS Satellites Used
-      thisModem().streamSkipUntil(',');      // Reserved3
-      thisModem().streamSkipUntil(',');      // C/N0 max
-      thisModem().streamSkipUntil(',');      // HPA
-      thisModem().streamSkipUntil('\n');     // VPA
+      info.altitude  =  thisModem().streamGetFloatBefore(','); // MSL Altitude. Unit is meters
+      info.speed     = thisModem().streamGetFloatBefore(',');  // Speed Over Ground. Unit is knots.
+      info.course    = thisModem().streamGetFloatBefore(',');  // Course Over Ground. Degrees.
+      if(info.course < 0 || info.course >=360){
+        info.course = 0.0;
+      }
+      thisModem().streamSkipUntil(',');                   // FixMode
+      thisModem().streamSkipUntil(',');                   // Reserved1
+      info.HDOP = thisModem().streamGetFloatBefore(',');  // Horizontal Dilution Of Precision
+      if(info.HDOP < 0 || info.HDOP > 100){
+        info.HDOP = 0.0;
+      }
+      info.PDOP = thisModem().streamGetFloatBefore(',');  // Position Dilution Of Precision
+      if(info.PDOP < 0 || info.PDOP > 100){
+        info.PDOP = 0.0;
+      }
+      info.VDOP = thisModem().streamGetFloatBefore(',');  // Vertical Dilution Of Precision
+      if(info.VDOP < 0 || info.VDOP > 100){
+        info.VDOP = 0.0;
+      }
+      thisModem().streamSkipUntil(',');                   // Reserved2
+      info.GSV = thisModem().streamGetIntBefore(',');     // GNSS Satellites in View
+
+      if(model == QUALCOMM_SIM7080G){
+        thisModem().streamSkipUntil(',');                   // Reserved3
+      }else{
+        info.GSU = thisModem().streamGetIntBefore(',');     // GNSS Satellites Used
+        info.glonass_satellite_num = thisModem().streamSkipUntil(',');  // GLONASS Satellites Used
+        thisModem().streamSkipUntil(',');                   // Reserved3
+        thisModem().streamSkipUntil(',');                   // C/N0 max
+      }
+      thisModem().streamSkipUntil(',');                   // HPA
+      thisModem().streamSkipUntil('\n');                  // VPA
+
       return true;
     }
 
