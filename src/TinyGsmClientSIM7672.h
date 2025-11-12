@@ -329,7 +329,64 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
     return res;
   }
 
-  bool setNetworkActive(){
+  
+  bool enableIP4() {
+    sendAT(GF("+CSOCKSETPN=1,1"));
+    if(waitResponse() != 1){
+      return false;
+    } 
+    sendAT(GF("+CIPCFG=\"CID\",1"));
+    return waitResponse() == 1;
+  }
+
+  bool enableIP6() {
+    sendAT(GF("+CSOCKSETPN=1,6"));
+    if(waitResponse() != 1){
+      return false;
+    } 
+    sendAT(GF("+CIPCFG=\"CID\",6"));
+    return waitResponse() == 1;
+  }
+
+  bool setNetworkAPN(String apn) {
+    sendAT(GF("+CGDCONT=1,\"IP\",\""), apn, "\"");
+    return waitResponse() == 1;
+  }
+  
+  bool setNetworkAPN_IPV6(String apn) {
+    sendAT(GF("+CGDCONT=1,\"IPV6\",\""), apn, "\"");
+    return waitResponse() == 1;
+  }
+
+  bool setNetworkAPN_IPV4V6(String apn) {
+    sendAT(GF("+CGDCONT=1,\"IPV4V6\",\""), apn, "\"");
+    return waitResponse() == 1;
+  }
+
+  bool setNetworkActive(String apn = "",bool useIPV6 = false){
+
+    // Disable network
+    setNetworkDeactivate();
+
+    if(useIPV6){
+      if(apn != ""){
+        if(setNetworkAPN_IPV6(apn) == false) {
+          return false;
+        }
+      }
+      if(enableIP6() == false){
+        return false;
+      }
+    } else {
+      if(apn != ""){
+        if(setNetworkAPN(apn) == false) {
+          return false;
+        }
+      }
+      if(enableIP4() == false){
+        return false;
+      }
+    }
     sendAT(GF("+NETOPEN"));  
     int res = waitResponse(GF("+NETOPEN: 0"),GF("+IP ERROR: Network is already opened")); 
     if (res != 1 && res != 2){
@@ -369,11 +426,8 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
     return res;
   }
 
-  bool setNetworkAPN(String apn) {
-    sendAT(GF("+CGDCONT=1,\"IP\",\""), apn, "\"");
-    return waitResponse() == 1;
-  }
-  
+
+
   /*
   * Return code:
   *     -1 ping failed

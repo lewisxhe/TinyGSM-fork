@@ -258,7 +258,64 @@ class TinyGsmA76xx : public TinyGsmModem<TinyGsmA76xx<modemType>>,
     return res;
   }
 
-  bool setNetworkActive() {
+  bool setNetworkAPN(String apn) {
+    thisModem().sendAT(GF("+CGDCONT=1,\"IP\",\""), apn, "\"");
+    return thisModem().waitResponse() == 1;
+  }
+
+  bool setNetworkAPN_IPV6(String apn) {
+    thisModem().sendAT(GF("+CGDCONT=1,\"IPV6\",\""), apn, "\"");
+    return thisModem().waitResponse() == 1;
+  }
+
+  bool setNetworkAPN_IPV4V6(String apn) {
+    thisModem().sendAT(GF("+CGDCONT=1,\"IPV4V6\",\""), apn, "\"");
+    return thisModem().waitResponse() == 1;
+  }
+
+  bool enableIP4() {
+    thisModem().sendAT(GF("+CSOCKSETPN=1,1"));
+    if(thisModem().waitResponse() != 1){
+      return false;
+    } 
+    thisModem().sendAT(GF("+CIPCFG=\"CID\",1"));
+    return thisModem().waitResponse() == 1;
+  }
+
+  bool enableIP6() {
+    thisModem().sendAT(GF("+CSOCKSETPN=1,6"));
+    if(thisModem().waitResponse() != 1){
+      return false;
+    } 
+    thisModem().sendAT(GF("+CIPCFG=\"CID\",6"));
+    return thisModem().waitResponse() == 1;
+  }
+
+  bool setNetworkActive(String apn = "",bool useIPV6 = false) {
+
+    // Disable network
+    setNetworkDeactivate();
+
+    if(useIPV6){
+      if(apn != ""){
+        if(setNetworkAPN_IPV6(apn) == false) {
+          return false;
+        }
+      }
+      if(enableIP6() == false){
+        return false;
+      }
+    } else {
+      if(apn != ""){
+        if(setNetworkAPN(apn) == false) {
+          return false;
+        }
+      }
+      if(enableIP4() == false){
+        return false;
+      }
+    }
+
     thisModem().sendAT(GF("+NETOPEN"));
     int res = thisModem().waitResponse(GF("+NETOPEN: 0"),
                                        GF("+IP ERROR: Network is already opened"));
@@ -297,10 +354,7 @@ class TinyGsmA76xx : public TinyGsmModem<TinyGsmA76xx<modemType>>,
     return res;
   }
 
-  bool setNetworkAPN(String apn) {
-    thisModem().sendAT(GF("+CGDCONT=1,\"IP\",\""), apn, "\"");
-    return thisModem().waitResponse() == 1;
-  }
+
 
   /*
    * Return code:

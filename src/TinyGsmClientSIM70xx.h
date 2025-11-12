@@ -334,7 +334,42 @@ public:
     return thisModem().setNetworkDeactivateImpl();
   }
 
-  bool setNetworkActive() {
+  bool enableIP4() {
+    // TODO: to be implemented
+    return true;  
+  }
+
+  bool enableIP6() {
+    // TODO: to be implemented
+    return true;
+  }
+
+  bool setNetworkActive(String apn = "",bool useIPV6 = false) {
+
+    // Disable network
+    setNetworkDeactivate();
+
+
+    if(useIPV6){
+      if(apn != ""){
+        if(setNetworkAPN_IPV6(apn) == false) {
+          return false;
+        }
+      }
+      if(enableIP6() == false){
+        return false;
+      }
+    } else {
+      if(apn != ""){
+        if(setNetworkAPN(apn) == false) {
+          return false;
+        }
+      }
+      if(enableIP4() == false){
+        return false;
+      }
+    }
+
     return thisModem().setNetworkActiveImpl();
   }
 
@@ -347,6 +382,16 @@ public:
     return waitResponse() == 1;
   }
 
+  bool setNetworkAPN_IPV6(String apn) {
+    thisModem().sendAT(GF("+CGDCONT=1,\"IPV6\",\""), apn, "\"");
+    return thisModem().waitResponse() == 1;
+  }
+
+  bool setNetworkAPN_IPV4V6(String apn) {
+    thisModem().sendAT(GF("+CGDCONT=1,\"IPV4V6\",\""), apn, "\"");
+    return thisModem().waitResponse() == 1;
+  }
+  
   String getNetworkAPN() {
     thisModem().sendAT("+CGNAPN");
     if (waitResponse(GF(GSM_NL "+CGNAPN:")) != 1) { return ""; }

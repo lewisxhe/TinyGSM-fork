@@ -461,7 +461,52 @@ class TinyGsmSim7600 : public TinyGsmModem<TinyGsmSim7600>,
     return ipAddress;
   }
 
-  bool setNetworkActive() {
+  bool enableIP4() {
+    sendAT(GF("+CSOCKSETPN=1,1"));
+    if(waitResponse() != 1){
+      return false;
+    } 
+    // sendAT(GF("+CIPCFG=\"IP-TYPE\",1"));
+    // return waitResponse() == 1;
+    return true;
+  }
+
+  bool enableIP6() {
+    sendAT(GF("+CSOCKSETPN=1,6"));
+    if(waitResponse() != 1){
+      return false;
+    } 
+    // sendAT(GF("+CIPCFG=\"IP-TYPE\",2"));
+    // return waitResponse() == 1;
+    return true;
+  }
+
+  bool setNetworkActive(String apn = "",bool useIPV6 = false) {
+
+    // Disable network
+    setNetworkDeactivate();
+
+
+    if(useIPV6){
+      if(apn != ""){
+        if(setNetworkAPN_IPV6(apn) == false) {
+          return false;
+        }
+      }
+      if(enableIP6() == false){
+        return false;
+      }
+    } else {
+      if(apn != ""){
+        if(setNetworkAPN(apn) == false) {
+          return false;
+        }
+      }
+      if(enableIP4() == false){
+        return false;
+      }
+    }
+    
     sendAT(GF("+NETOPEN"));
     int res = waitResponse(GF("+NETOPEN: 0"), GF("+IP ERROR: Network is already opened"));
     if (res == 2) {
@@ -501,6 +546,16 @@ class TinyGsmSim7600 : public TinyGsmModem<TinyGsmSim7600>,
 
   bool setNetworkAPN(String apn) {
     sendAT(GF("+CGDCONT=1,\"IP\",\""), apn, "\"");
+    return waitResponse() == 1;
+  }
+
+  bool setNetworkAPN_IPV6(String apn) {
+    sendAT(GF("+CGDCONT=1,\"IPV6\",\""), apn, "\"");
+    return waitResponse() == 1;
+  }
+
+  bool setNetworkAPN_IPV4V6(String apn) {
+    sendAT(GF("+CGDCONT=1,\"IPV4V6\",\""), apn, "\"");
     return waitResponse() == 1;
   }
 
