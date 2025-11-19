@@ -557,6 +557,10 @@ public:
     if(power_en_pin != -1){
       if(model == QUALCOMM_SIM7080G){
         thisModem().sendAT("+SGPIO=0,",power_en_pin,",1,",enable_level);
+        thisModem().waitResponse(3000);
+        // For older firmware versions of the SIM7070G, the new version's control GPIO is unavailable.
+        thisModem().sendAT("+CGPIO=0,",power_en_pin,",1,",enable_level);
+        thisModem().waitResponse(3000);
       }else{
         thisModem().sendAT("+CGPIO=0,",power_en_pin,",1,",enable_level);
       }
