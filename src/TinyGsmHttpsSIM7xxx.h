@@ -52,6 +52,13 @@ public:
         _resp_timeout = timeout_ms;
     }
 
+    /**
+     * @brief  Set the SSL context for the HTTPS connection.
+     * @note   This function sets the SSL context index and the root CA certificate file.
+     * @param  ctxindex: The SSL context index to be set.
+     * @param  *ca_filename: The root CA certificate file path.
+     * @retval None
+     */
     bool https_begin(uint8_t ctxindex = 1, const char *ca_filename = NULL)
     {
         _ctxindex = ctxindex;
@@ -59,9 +66,7 @@ public:
         // Make sure the previous connection is disconnected
         https_end();
 
-        // set sni
-        thisModem().sendAT("+CSSLCFG=\"sni\",0,1");
-        thisModem().waitResponse();
+
 
         thisModem().sendAT("+SHCHEAD");
         thisModem().waitResponse();
@@ -92,14 +97,27 @@ public:
         return true;
     }
 
+    /**
+     * @brief  Terminate the HTTPS connection.
+     * @note   This function is used to end the HTTPS connection.
+     * @retval None
+     */
     void https_end()
     {
         thisModem().sendAT("+SHDISC");
         thisModem().waitResponse(3000);
     }
 
+    /**
+     * @brief  Set the URL and SSL version for the HTTPS request.
+     * @note   This function sets the target URL for the HTTPS request and the SSL version to be used.
+     * @param  &url: The target URL for the HTTPS request.
+     * @param  ssl_version: The SSL version to be used. Defaults to TINYGSM_SSL_TLS1_2.
+     * @param  enableSNI: Whether to enable SNI (Server Name Indication). Defaults to true.
+     * @retval true if the URL and SSL version are set successfully, false otherwise.
+     */
     bool https_set_url(const String    &url,
-                       ServerSSLVersion ssl_version = TINYGSM_SSL_TLS1_2)
+                       ServerSSLVersion ssl_version = TINYGSM_SSL_TLS1_2, bool enableSNI = true)
     {
         if (url.length() > 64) {
             log_e("URL too long ,max length is 64bytes");
@@ -113,6 +131,10 @@ public:
         if (ssl_version == TINYGSM_SSL_AUTO) {
             ssl_version = TINYGSM_SSL_TLS1_2;
         }
+
+        // Set SNI
+        thisModem().sendAT("+CSSLCFG=\"sni\",0,", enableSNI ? 1 : 0);
+        thisModem().waitResponse();
 
         // https://github.com/Xinyuan-LilyGO/LilyGO-T-A76XX/issues/243
         // Set SSL Version
@@ -140,6 +162,12 @@ public:
         return thisModem().waitResponse(60000UL) == 1;
     }
 
+    /**
+     * @brief  Set the timeout for the HTTPS connection.
+     * @note   This function sets the timeout for the HTTPS connection.
+     * @param  timeout_second: The timeout value in seconds.
+     * @retval true if the timeout is set successfully, false otherwise.
+     */
     bool https_set_timeout(uint8_t timeout_second = 60)
     {
         thisModem().sendAT("+SHCONF=\"TIMEOUT\",", timeout_second);
@@ -149,31 +177,66 @@ public:
         return true;
     }
 
+    /**
+     * @brief  Set the User-Agent header for the HTTPS request.
+     * @note   This function sets the User-Agent header to identify the client.
+     * @param  &userAgent: The User-Agent string to be set.
+     * @retval true if the User-Agent is set successfully, false otherwise.
+     */
     bool https_set_user_agent(const String &userAgent)
     {
         return https_add_header("User-Agent", userAgent);
     }
 
+    /**
+     * @brief  Set the Content-Type header for the HTTPS request.
+     * @note   This function sets the Content-Type header to indicate the media type of the resource.
+     * @param  *contentType: The Content-Type string to be set.
+     * @retval true if the content type is set successfully, false otherwise.
+     */
     bool https_set_content_type(const char *contentType)
     {
         return https_add_header("Content-Type", contentType);
     }
 
+    /**
+     * @brief  Set the Accept header for the HTTPS request.
+     * @note   This function sets the Accept header to specify the media types that are acceptable for the response.
+     * @param  *acceptType: The Accept string to be set.
+     * @retval true if the accept type is set successfully, false otherwise.
+     */
     bool https_set_accept_type(const char *acceptType)
     {
         return https_add_header("ACCEPT", acceptType);
     }
 
+    /**
+    * @brief  Not achieved in SIM7000 series.
+    */
     bool https_set_ssl_index(uint8_t sslId)
     {
         return false;
     }
 
+    /**
+     * @brief  Add a custom header to the HTTPS request.
+     * @note   This function adds a custom header to the HTTPS request.
+     * @param  &name: The name string to be set.
+     * @param  &value: The value string to be set.
+     * @retval true if the header is added successfully, false otherwise.
+     */
     bool https_add_header(const String &name, const String &value)
     {
         return https_add_header(name.c_str(), value.c_str());
     }
 
+    /**
+     * @brief  Add a custom header to the HTTPS request.
+     * @note   This function adds a custom header to the HTTPS request.
+     * @param  *name: The name string to be set.
+     * @param  *value: The value string to be set.
+     * @retval true if the header is added successfully, false otherwise.
+     */
     bool https_add_header(const char *name, const char *value)
     {
         thisModem().sendAT("+SHAHEAD=\"", name, "\",\"", value, "\"");
@@ -183,11 +246,20 @@ public:
         return true;
     }
 
+    /**
+    * @brief  Not achieved in SIM7000 series.
+    */
     bool https_set_break(int _break, int _breakEnd)
     {
         return false;
     }
 
+    /**
+     * @brief  Get the body length of the HTTPS response.
+     * @note   This function retrieves the length of the body in the HTTPS response.
+     * @param  *bodyLength: A pointer to a variable to store the body length.
+     * @retval true if the body length is retrieved successfully, false otherwise.
+     */
     int https_get(size_t *bodyLength = NULL)
     {
         int ret =  https_method(TINYGSM_HTTP_GET, NULL, 0);
@@ -197,11 +269,21 @@ public:
         return ret;
     }
 
+    /**
+     * @brief  SIM7000 series does not support obtaining HTTP header information..
+     */
     String https_header()
     {
         return "SIM70XX MODEM does not support getting request header";
     }
 
+    /**
+     * @brief  Get the body of the HTTPS response.
+     * @note   This function retrieves the body from the HTTPS response.
+     * @param  *buffer: A pointer to a buffer to store the body.
+     * @param  buffer_size: The size of the buffer.
+     * @retval The length of the body retrieved, or -1 on error.
+     */
     int https_body(uint8_t *buffer, int buffer_size)
     {
         if (!buffer || !buffer_size) {
@@ -226,6 +308,11 @@ public:
         return thisModem().stream.readBytes(buffer, length);
     }
 
+    /**
+     * @brief  Get the body of the HTTPS response.
+     * @note   This function retrieves the body from the HTTPS response.
+     * @retval The body as a String.
+     */
     String https_body()
     {
         int    offset = 0;
@@ -263,6 +350,11 @@ public:
         return body;
     }
 
+    /**
+     * @brief  Get the size of the HTTPS response body.
+     * @note   This function retrieves the size of the body in the HTTPS response.
+     * @retval The size of the body in bytes.
+     */
     size_t https_get_size(void)
     {
         return _bodyLength;
@@ -479,18 +571,18 @@ private:
                      uint32_t inputTimeout = 10000)
     {
         if (payload) {
-            if(platform == QUALCOMM_SIM7080G){
-                thisModem().sendAT("+SHBOD=", size, "," , inputTimeout);
+            if (platform == QUALCOMM_SIM7080G) {
+                thisModem().sendAT("+SHBOD=", size, ",", inputTimeout);
                 if (thisModem().waitResponse(30000UL, ">") != 1) {
                     return -1;
                 }
                 thisModem().stream.write(payload);
                 thisModem().stream.println();
                 // Wait return OK
-                if(thisModem().waitResponse() != 1){
+                if (thisModem().waitResponse() != 1) {
                     return -1;
                 }
-            }else{
+            } else {
                 thisModem().sendAT("+SHBOD=", '"', (char *)payload, '"', ',', size);
                 if (thisModem().waitResponse(30000UL) != 1) {
                     return -1;

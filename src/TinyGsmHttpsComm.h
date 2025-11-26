@@ -46,9 +46,7 @@ class TinyGsmHttpsComm {
 
     thisModem().sendAT("+HTTPINIT");
     if (thisModem().waitResponse(10000UL) != 1) { return false; }
-    // set sni
-    thisModem().sendAT("+CSSLCFG=\"enableSNI\",0,1");
-    thisModem().waitResponse();
+
 
     return true;
   }
@@ -73,12 +71,17 @@ class TinyGsmHttpsComm {
    *
    * @param url The target URL for the HTTPS request.
    * @param ssl_version The SSL version to be used. Defaults to TINYGSM_SSL_AUTO.
+   * @param enableSNI Whether to enable SNI (Server Name Indication). Defaults to true.
    * @return true if the URL and SSL version are set successfully, false otherwise.
    */
-  bool https_set_url(const String& url, ServerSSLVersion ssl_version = TINYGSM_SSL_AUTO) {
+  bool https_set_url(const String& url, ServerSSLVersion ssl_version = TINYGSM_SSL_AUTO, bool enableSNI = true) {
     // https://github.com/Xinyuan-LilyGO/LilyGO-T-A76XX/issues/243
     // Set SSL Version
     thisModem().sendAT("+CSSLCFG=\"sslversion\",0,", ssl_version);
+    thisModem().waitResponse();
+
+    // Set SNI
+    thisModem().sendAT("+CSSLCFG=\"enableSNI\",0,", enableSNI ? 1 : 0);
     thisModem().waitResponse();
 
     thisModem().sendAT("+HTTPPARA=\"URL\",", "\"", url, "\"");
