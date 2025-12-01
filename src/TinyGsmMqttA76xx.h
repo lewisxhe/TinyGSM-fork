@@ -37,6 +37,19 @@ public:
      */
     bool mqtt_begin(bool ssl, bool sni = false)
     {
+        // Clean up previous MQTT connection if any
+        thisModem().sendAT("+CMQTTDISC=0,120");
+        thisModem().waitResponse();
+        thisModem().sendAT("+CMQTTDISC=1,120");
+        thisModem().waitResponse();
+        thisModem().sendAT("+CMQTTREL=0,120");
+        thisModem().waitResponse();
+        thisModem().sendAT("+CMQTTREL=1,120");
+        thisModem().waitResponse();
+        thisModem().sendAT("+CMQTTSTOP");
+        thisModem().waitResponse();
+        delay(20);  //Wait 20 ms
+
         __sni = sni;
         __ssl = ssl;
         if (!this->buffer) {

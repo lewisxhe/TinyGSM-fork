@@ -335,8 +335,10 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
     if(waitResponse() != 1){
       return false;
     } 
-    sendAT(GF("+CIPCFG=\"CID\",1"));
-    return waitResponse() == 1;
+    // todo: NEED FIX
+    // sendAT(GF("+CIPCFG=\"CID\",1"));
+    // return waitResponse() == 1;
+    return true;
   }
 
   bool enableIP6() {
@@ -344,8 +346,10 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
     if(waitResponse() != 1){
       return false;
     } 
-    sendAT(GF("+CIPCFG=\"CID\",6"));
-    return waitResponse() == 1;
+    // todo: NEED FIX
+    // sendAT(GF("+CIPCFG=\"CID\",6"));
+    // return waitResponse() == 1;
+    return true;
   }
 
   bool setNetworkAPN(String apn) {
