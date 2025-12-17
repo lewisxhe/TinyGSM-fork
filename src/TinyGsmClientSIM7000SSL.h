@@ -467,12 +467,24 @@ class TinyGsmSim7000SSL : public TinyGsmSim70xx<TinyGsmSim7000SSL,QUALCOMM_SIM70
     stream.write(reinterpret_cast<const uint8_t*>(buff), len);
     stream.flush();
 
+    // FIXME LilyGO SIM7000G returns only a simple okay
+    // *
+    // Revision:1529B10SIM7000G
+    // CSUB:V02
+    // APRev:1529B10SIM7000,V02
+    // QCN:MDM9206_TX3.0.SIM7000G_P1.03C_20240911
+    // *
+    // OK after posting data
+    if (waitResponse() != 1) { return 0; }
+
+    return len;
+
     // after posting data, module responds with:
     //+CASEND: <cid>,<result>,<sendlen>
-    if (waitResponse(GF(GSM_NL "+CASEND:")) != 1) { return 0; }
-    streamSkipUntil(',');                            // Skip mux
-    if (streamGetIntBefore(',') != 0) { return 0; }  // If result != success
-    return streamGetIntBefore('\n');
+    // if (waitResponse(GF(GSM_NL "+CASEND:")) != 1) { return 0; }
+    // streamSkipUntil(',');                            // Skip mux
+    // if (streamGetIntBefore(',') != 0) { return 0; }  // If result != success
+    // return streamGetIntBefore('\n');
   }
 
   size_t modemRead(size_t size, uint8_t mux) {
