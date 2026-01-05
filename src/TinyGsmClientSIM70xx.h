@@ -378,7 +378,7 @@ public:
   }
 
   bool setNetworkAPN(String apn) {
-    thisModem().sendAT("+CGDCONT=1,\"IP\",", apn, "\"");
+    thisModem().sendAT("+CGDCONT=1,\"IP\",\"", apn, "\"");
     return waitResponse() == 1;
   }
 
