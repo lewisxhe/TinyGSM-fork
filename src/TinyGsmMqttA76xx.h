@@ -247,7 +247,7 @@ public:
     }
 
     bool mqtt_publish(uint8_t clientIndex, const char *topic, const char *playload,
-                      uint8_t qos = 0, uint32_t timeout = 60)
+                      uint8_t qos = 0, uint32_t timeout = 60, uint8_t retain = 0)
     {
         if (clientIndex > muxCount) {
             return false;
@@ -281,7 +281,7 @@ public:
         }
         // +CMQTTPUB: (0-1),(0-2),(60-180),(0-1),(0-1)
         // <client_index>,<qos>,<pub_timeout>,<ratained>,<dup>
-        thisModem().sendAT("+CMQTTPUB=", clientIndex, ',', qos, ',', timeout);
+        thisModem().sendAT("+CMQTTPUB=", clientIndex, ',', qos, ',', timeout, ',', retain );
         if (thisModem().waitResponse() != 1) {
             return false;
         }
