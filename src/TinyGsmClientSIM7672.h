@@ -307,7 +307,7 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
    */
  public:
   RegStatus getRegistrationStatus() {
-    return (RegStatus)getRegistrationStatusXREG("CREG");
+    return (RegStatus)getRegistrationStatusXREG("CEREG");
   }
 
  protected:
