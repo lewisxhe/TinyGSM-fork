@@ -57,7 +57,7 @@ enum SIM7670G_GPSMode {
   GNSS_MODE_GPS_GLONASS = 3,           //  GPS + GLONASS
   GNSS_MODE_GPS_GALILEO = 5,           //  GPS + GALILEO
   GNSS_MODE_GPS_BDS = 9,               //  GPS + BDS
-  GNSS_MODE_GPS_GLONASS_BDS = 13,      //  GPS + GALILEO + BDS
+  GNSS_MODE_GPS_GALILEO_BDS = 13,      //  GPS + GALILEO + BDS
   GNSS_MODE_GPS_GLONASS_GALILEO_BDS = 15       //  GPS + GLONASS + GALILEO + BDS
 };
 
@@ -307,7 +307,7 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
    */
  public:
   RegStatus getRegistrationStatus() {
-    return (RegStatus)getRegistrationStatusXREG("CREG");
+    return (RegStatus)getRegistrationStatusXREG("CEREG");
   }
 
  protected:
