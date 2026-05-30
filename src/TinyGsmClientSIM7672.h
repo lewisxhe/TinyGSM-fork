@@ -993,9 +993,10 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
   /*
    * +CCH SSL-channel socket methods (SIM7672X/SIM7652X SSL Application Note)
    * Sessions 0–1 only; uses the same AT+CSSLCFG / AT+CCH* commands as A76xx.
-   * NOTE: exact URC framing (+CCHRECV: LEN/DATA field order) needs on-device
-   *       verification against this modem's firmware. If mismatched, adjust
-   *       sslRead() and sslAvailable() accordingly.
+   * Field order confirmed against TinyGsmClientA76xxSSL.h (same +CCH command set):
+   *   DATA response: +CCHRECV: DATA,<session>,<len>   (session first)
+   *   LEN  response: +CCHRECV: LEN,<len>,<session>    (len first)
+   * Qualcomm (SIM7670G) vs ASR (A76xx) equivalence unconfirmed until hardware test.
    */
  protected:
   bool sslConnect(const char* host, uint16_t port, uint8_t mux, int timeout_s) {
