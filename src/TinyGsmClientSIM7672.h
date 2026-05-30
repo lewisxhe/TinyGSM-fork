@@ -1097,14 +1097,15 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
     if (!sockets[mux]) { return 0; }
     if (!sslConnected(mux)) { return 0; }
     sendAT(GF("+CCHRECV?"));
-    // +CCHRECV: LEN,<bytes>,<session_id>
+    // +CCHRECV: LEN,<cache_len_0>,<cache_len_1>
+    // Both fields are cache lengths for session 0 and 1 respectively.
+    // (SIM7672X SSL App Note §2.2.15 — NOT <len>,<session_id> as in A76xx)
     int res = waitResponse(3000, GF("+CCHRECV: LEN,"), GFP(GSM_OK), GFP(GSM_ERROR));
     if (res == 1) {
-      size_t result  = streamGetIntBefore(',');
-      int    ret_mux = streamGetIntBefore('\n');
-      if (ret_mux >= 0 && ret_mux < TINY_GSM_MUX_COUNT && sockets[ret_mux]) {
-        sockets[ret_mux]->sock_available = result;
-      }
+      size_t len0 = streamGetIntBefore(',');   // RX bytes cached for session 0
+      size_t len1 = streamGetIntBefore('\n');  // RX bytes cached for session 1
+      if (sockets[0]) sockets[0]->sock_available = len0;
+      if (sockets[1]) sockets[1]->sock_available = len1;
       waitResponse();
     }
     if (!sockets[mux]) { return 0; }
@@ -1359,7 +1360,12 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
           }
           data = "";
         } else if (data.endsWith(GF("+CCHEVENT:"))) {
-          streamSkipUntil('\n');  // e.g. "+CCHEVENT: 0,RECV EVENT"
+          // +CCHEVENT: <session_id>,RECV EVENT  (recv_mode=1 data-ready notification)
+          int8_t mux = streamGetIntBefore(',');
+          streamSkipUntil('\n');
+          if (mux >= 0 && mux < TINY_GSM_MUX_COUNT && sockets[mux]) {
+            sockets[mux]->got_data = true;
+          }
           data = "";
         }
       }
