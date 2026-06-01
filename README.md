@@ -40,10 +40,28 @@ Supports per-mux SSL certificate configuration via `setCertificate()`,
 
 `TinyGsmClient.h` now exposes `TinyGsmClientSecure` for `TINY_GSM_MODEM_SIM7670G`.
 
-> **Status:** implemented and builds; **awaiting on-device hardware test**.
-> `+CCHRECV` field order (`DATA,<session>,<len>` / `LEN,<len>,<session>`)
-> confirmed against `TinyGsmClientA76xxSSL.h` — Qualcomm vs ASR equivalence
-> unconfirmed until first hardware run.
+> **Status:** confirmed on hardware — T-SIM7670G-S3, firmware `SIM767XM5_B05V01_241206`.
+> All four TLS socket tests pass (example.com, ecc256.badssl.com, raw.githubusercontent.com,
+> 303 KB firmware download). End-to-end OTA via MQTT command confirmed working.
+>
+> `+CCHRECV` field order confirmed:
+> - `+CCHRECV: DATA,<session>,<len>` — `sslRead()`
+> - `+CCHRECV: LEN,<cache_len_0>,<cache_len_1>` — `sslAvailable()`
+
+Three bugs discovered and fixed during hardware validation (committed separately):
+
+- **`+CCH_PEER_CLOSED` data loss** — HTTP/1.0 servers send data and close in quick
+  succession. `sslAvailable()` called `sslConnected()` (→ `AT+CCHOPEN?`) first; by
+  the time that returned, the connection was gone and the buffer was never read. Fixed
+  with a `peer_closed[]` flag that bypasses the connected check and drains the buffer.
+
+- **`AT+CCHOPEN?` polled on every `maintain()` cycle** — hundreds of unnecessary
+  round-trips during a large download. Fixed: `sslAvailable()` now checks the
+  URC-maintained `sock_connected` flag instead of issuing `AT+CCHOPEN?`.
+
+- **`getLocalIPImpl()` returns AT echo with `StreamDebugger`** — `getLocalIP()`
+  returned `"AT+IPADDR+IPADDR: x.x.x.x"`. Fixed: parse `+IPADDR:` marker and
+  return just the address.
 
 #### 2. Runtime PSRAM detection (`TinyGsmCommon.h`)
 
