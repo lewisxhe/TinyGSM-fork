@@ -199,8 +199,9 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
    */
  public:
   explicit TinyGsmSim7672(Stream& stream) : stream(stream) {
-    memset(sockets, 0, sizeof(sockets));
-    memset(sslMode, 0, sizeof(sslMode));
+    memset(sockets,     0, sizeof(sockets));
+    memset(sslMode,     0, sizeof(sslMode));
+    memset(peer_closed, 0, sizeof(peer_closed));
   }
 
   /*
@@ -348,8 +349,17 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
     // sendAT(GF("+CGPADDR=1"));  // Show PDP address
     String res;
     if (waitResponse(10000L, res) != 1) { return ""; }
-    res.replace(GSM_NL "OK" GSM_NL, "");
-    res.replace(GSM_NL, "");
+    // Response may include AT command echo (visible with StreamDebugger).
+    // Find the +IPADDR: marker and extract just the address.
+    int idx = res.indexOf("+IPADDR:");
+    if (idx >= 0) {
+      res = res.substring(idx + 8);
+      idx = res.indexOf('\r');
+      if (idx >= 0) res = res.substring(0, idx);
+    } else {
+      res.replace(GSM_NL "OK" GSM_NL, "");
+      res.replace(GSM_NL, "");
+    }
     res.trim();
     return res;
   }
@@ -1022,6 +1032,7 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
  protected:
   bool sslConnect(const char* host, uint16_t port, uint8_t mux, int timeout_s) {
     if (mux >= 2) { DBG("SSL mux must be 0 or 1"); return false; }
+    peer_closed[mux] = false;
     uint32_t timeout_ms = ((uint32_t)timeout_s) * 1000;
     uint8_t  authmode   = 0;
 
@@ -1116,7 +1127,11 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
 
   size_t sslAvailable(uint8_t mux) {
     if (!sockets[mux]) { return 0; }
-    if (!sslConnected(mux)) { return 0; }
+    // Use the URC-maintained sock_connected flag instead of AT+CCHOPEN? —
+    // eliminates one round-trip per maintain() cycle during active data transfer.
+    // sock_connected is set true by sslConnect() and false by +CCH_PEER_CLOSED.
+    // peer_closed allows draining the buffer after the server closes.
+    if (!sockets[mux]->sock_connected && !peer_closed[mux]) { return 0; }
     sendAT(GF("+CCHRECV?"));
     // +CCHRECV: LEN,<cache_len_0>,<cache_len_1>
     // Both fields are cache lengths for session 0 and 1 respectively.
@@ -1152,6 +1167,7 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
   }
 
   bool sslDisconnect(uint8_t mux) {
+    peer_closed[mux] = false;
     sendAT(GF("+CCHCLOSE="), mux);
     waitResponse(3000);
     waitResponse(3000UL, GF("+CCHCLOSE:"), GFP(GSM_ERROR));
@@ -1376,7 +1392,9 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
         } else if (data.endsWith(GF("+CCH_PEER_CLOSED:"))) {
           int8_t mux = streamGetIntBefore('\n');
           if (mux >= 0 && mux < TINY_GSM_MUX_COUNT && sockets[mux]) {
-            sockets[mux]->sock_connected = false;
+            peer_closed[mux]              = true;  // buffer may still hold data
+            sockets[mux]->got_data        = true;  // trigger one final read attempt
+            sockets[mux]->sock_connected  = false;
             DBG("### SSL peer closed:", mux);
           }
           data = "";
@@ -1433,6 +1451,7 @@ class TinyGsmSim7672 : public TinyGsmModem<TinyGsmSim7672>,
  protected:
   GsmClientSim7672* sockets[TINY_GSM_MUX_COUNT];
   bool              sslMode[TINY_GSM_MUX_COUNT];
+  bool              peer_closed[TINY_GSM_MUX_COUNT];  // set on +CCH_PEER_CLOSED; cleared on connect/disconnect
   String            certificates[TINY_GSM_MUX_COUNT];
   String            client_certificate[TINY_GSM_MUX_COUNT];
   String            client_private_key[TINY_GSM_MUX_COUNT];
